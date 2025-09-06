@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { io } from 'socket.io-client';
 import ErrorBoundary from './ErrorBoundary';
+import useSocket from './useSocket';
 import axios from 'axios';
 import { Container, Paper, TextField, Button, List, ListItem, Typography, Box, ListItemText, Avatar, ThemeProvider, createTheme, CssBaseline, Badge, Drawer, IconButton, useMediaQuery } from '@mui/material';
+import { SnackbarProvider, useSnackbar } from 'notistack';
 import Grid from '@mui/material/Grid';
 import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
@@ -20,10 +21,7 @@ import RemoveIcon from '@mui/icons-material/Remove';
 import HeadphonesIcon from '@mui/icons-material/Headphones';
 import MenuIcon from '@mui/icons-material/Menu';
 
-const socket = io('http://localhost:3001', { transports: ['websocket', 'polling'], autoConnect: false, reconnection: true, reconnectionDelay: 1000 });
-socket.on('connect', () => console.log('Socket connected'));
-socket.on('disconnect', (reason) => console.log('Socket disconnected:', reason));
-socket.on('connect_error', (error) => console.log('Socket connect error:', error.message));
+  // Old socket removed - using useSocket hook now
 
 const darkTheme = createTheme({
   palette: {
@@ -56,7 +54,9 @@ const darkTheme = createTheme({
 
 function App() {
   const isMobile = useMediaQuery('(max-width:600px)');
-  const [token, setToken] = useState('');
+  const { enqueueSnackbar } = useSnackbar();
+
+  const [token, setToken] = useState(localStorage.getItem('chatToken') || '');
   const [nickname, setNickname] = useState('User1');
   const [role, setRole] = useState('member');
   const [room, setRoom] = useState(null);
@@ -72,6 +72,9 @@ function App() {
   const [voiceChannel, setVoiceChannel] = useState(null);
   const [inVoice, setInVoice] = useState(false);
 
+  // Socket connection hook
+  const { socket, isConnected, connectionStatus } = useSocket(token, { nickname, role });
+
   const validSelectedItems = useMemo(() => {
     const validChannels = channels.filter(c => c.id);
     if (!room || !validChannels.find(c => c.id === room)) return [];
@@ -80,15 +83,38 @@ function App() {
 
   useEffect(() => {
     if (!token) {
-      // Login to get token
-      axios.post('http://localhost:3001/login', { nickname })
+      // Register new user if not already logged in
+      // For demo purposes, we'll use a simple auto-registration
+      const defaultEmail = `${nickname.toLowerCase()}@example.com`;
+      axios.post('http://localhost:3001/register', {
+        nickname: nickname,
+        email: defaultEmail,
+        password: 'password123' // In production, this would be user input
+      })
         .then(res => {
           setToken(res.data.token);
-          setRole(res.data.role);
+          localStorage.setItem('chatToken', res.data.token);
+          setRole(res.data.user.role);
+          enqueueSnackbar(`Добро пожаловать, ${res.data.user.nickname}!`, { variant: 'success' });
         })
-        .catch(err => console.error('Login failed:', err));
+        .catch(err => {
+          // Try login if registration failed (user might already exist)
+          axios.post('http://localhost:3001/login', {
+            identifier: nickname,
+            password: 'password123'
+          })
+            .then(res => {
+              setToken(res.data.token);
+              localStorage.setItem('chatToken', res.data.token);
+              setRole(res.data.user.role);
+            })
+            .catch(loginErr => {
+              console.error('Auth failed:', loginErr);
+              enqueueSnackbar('Ошибка аутентификации', { variant: 'error' });
+            });
+        });
     }
-  }, []);
+  }, [token, nickname, enqueueSnackbar]);
 
   useEffect(() => {
     if (!token) return;
@@ -106,35 +132,34 @@ function App() {
   }, [token]);
 
   useEffect(() => {
-    if (!token || !room) return;
+    if (!token || !room || !socket) return;
 
     // Emit join_room when room changes
     socket.emit('join_room', { room, nickname });
-  }, [token, room]);
+  }, [token, room, socket, nickname]);
 
-  // Setup socket listeners once
+  // Setup socket listeners once with new hook
   useEffect(() => {
-    if (!token) return;
-
-    socket.auth = { token, nickname };
-    socket.connect();
+    if (!socket || !token) return;
 
     socket.on('message', (msg) => {
       console.log('Received message:', msg);
       setMessages(prev => [...prev, msg]);
     });
+
     socket.on('private_message', (msg) => setMessages(prev => [...prev, msg]));
     socket.on('history', (history) => setMessages(history));
     socket.on('online_users', (users) => setOnlineUsers(users));
     socket.on('speaking', (data) => {
       setOnlineUsers(prev => prev.map(u => u.nickname === data.nickname ? { ...u, speaking: data.speaking } : u));
     });
-    socket.on('error', (err) => console.error('Socket error:', err.message));
+    socket.on('error', (err) => {
+      console.error('Socket error:', err.message);
+      enqueueSnackbar(`Ошибка соединения: ${err.message}`, { variant: 'error' });
+    });
 
-    return () => {
-      socket.disconnect();
-    };
-  }, [token]);
+    // Cleanup function moved to useSocket hook
+  }, [socket, token, enqueueSnackbar]);
 
   // Initial room set after token and channels are loaded
   useEffect(() => {
@@ -144,38 +169,30 @@ function App() {
   }, [channels, room]);
 
   const sendMessage = () => {
-    console.log('sendMessage called, input:', input);
+    if (!socket || !isConnected) {
+      enqueueSnackbar('Нет соединения с сервером', { variant: 'error' });
+      return;
+    }
+
     if (input.trim()) {
-      console.log('Sending message, socket connected:', socket.connected, 'room:', room);
-      if (!socket.connected) {
-        console.log('Socket not connected, cannot send message');
-        // Wait for connection and retry
-        setTimeout(() => {
-          console.log('Retrying send after connection, socket connected:', socket.connected);
-          if (socket.connected) {
-            const data = { text: input };
-            socket.emit('message', data);
-            console.log('Message sent after retry:', data);
-            setInput('');
-          } else {
-            console.log('Still not connected, message not sent');
-          }
-        }, 1000); // wait 1 sec
+      if (!room) {
+        enqueueSnackbar('Не выбран канал', { variant: 'warning' });
         return;
       }
+
       if (input.startsWith('/w ')) {
         const parts = input.split(' ');
+        if (parts.length < 3) {
+          enqueueSnackbar('Используйте: /w [никнейм] [сообщение]', { variant: 'warning' });
+          return;
+        }
         const to = parts[1];
         const text = parts.slice(2).join(' ');
-        console.log('Sending private message:', { to, text });
         socket.emit('private_message', { to, text });
       } else {
-        console.log('Emitting message:', { text: input });
         socket.emit('message', { text: input });
       }
       setInput('');
-    } else {
-      console.log('Input is empty, message not sent');
     }
   };
 
@@ -211,6 +228,25 @@ function App() {
           <Typography variant={isMobile ? 'body1' : 'h6'} sx={{ color: '#ffffff', ml: isMobile ? 0 : 0 }}>
             Chat Server
           </Typography>
+
+          {/* Connection Status Indicator */}
+          <Box sx={{ ml: 2, display: 'flex', alignItems: 'center' }}>
+            <Box
+              sx={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                bgcolor: isConnected ? '#4caf50' : connectionStatus === 'reconnecting' ? '#ff9800' : '#f44336',
+                mr: 1
+              }}
+            />
+            {!isMobile && (
+              <Typography variant="body2" sx={{ color: '#b9bbbe' }}>
+                {isConnected ? 'Подключено' : connectionStatus === 'reconnecting' ? 'Переподключение...' : 'Отключено'}
+              </Typography>
+            )}
+          </Box>
+
           <Box sx={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
             {!isMobile && (
               <>
