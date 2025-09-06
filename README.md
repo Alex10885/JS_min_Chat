@@ -8,7 +8,7 @@
 
 ```mermaid
 graph TD
-    A[React Frontend - Material-UI] --> B[Socket.IO Client]
+    A[React 19 Frontend - Material-UI v7] --> B[Socket.IO Client]
     B --> C[Express Server + Socket.IO]
     C --> D[JWT Authentication]
     C --> E[Room/Channel Management]
@@ -63,7 +63,7 @@ graph TD
 - ✅ Security headers (Helmet)
 - ✅ API документация (Swagger)
 - ✅ Логирование (Winston)
-- ❌ Недостаточное покрытие тестами
+- ✅ Полная test suite (Jest + Supertest + MongoDB Memory Server)
 - ❌ Отсутствует TURN сервер для продакшена
 
 ## Стек технологий
@@ -83,7 +83,9 @@ graph TD
 - **React 19** + **@mui/material v7** - UI фреймворк
 - **Socket.IO Client** - WebSocket клиент
 - **Axios** - HTTP запросы
-- **useWebRTC hook** - голосовое общение
+- **useSocket hook** - управление Socket.IO соединением
+- **useWebRTC hook** - peer-to-peer голосовое общение
+- **ErrorBoundary** - отлов ошибок React
 - **ErrorBoundary** - обработка ошибок
 - Адаптивный дизайн (mobile-first)
 - Dark Discord-style тема
@@ -94,15 +96,25 @@ graph TD
 chat-js/
 ├── backend/
 │   ├── package.json
-│   └── server.js          # Сервер Socket.IO
+│   ├── server.js          # Основной сервер Express + Socket.IO
+│   ├── db/connection.js   # Подключение к MongoDB
+│   ├── models/            # Mongoose модели (User, Message, Channel)
+│   ├── services/          # Службы (emailService)
+│   ├── tests/             # Suite тестирования (Jest + Supertest)
+│   └── package-lock.json
 ├── frontend/
 │   ├── package.json
 │   ├── src/
-│   │   ├── App.js        # Главный компонент
-│   │   ├── App.css
-│   │   └── ...
+│   │   ├── App.js        # Главный компонент (Material-UI)
+│   │   ├── useSocket.js  # Hook для Socket.IO соединения
+│   │   ├── useWebRTC.js  # Hook для голосового общения
+│   │   ├── ErrorBoundary.js # Обработка ошибок
+│   │   └── App.css
 │   └── public/
-└── README.md
+├── README.md
+├── TODO.md
+├── docker-compose.yml     # Конфигурация TURN сервера
+└── .gitignore
 ```
 
 ## Быстрый запуск
@@ -126,12 +138,22 @@ chat-js/
    - Введите nickname (например, User1)
    - Присоединитесь к каналу General
 
-## Тестирование функций
+## Тестирование
 
+### Ручное тестирование
 - Откройте несколько вкладок для тестирования чата
 - Создавайте новые каналы через UI
 - Используйте `/w nickname сообщение` для приватных сообщений
-- Тестируйте мобильную версию
+- Тестируйте мобильную версию с drawer меню
+- Проверяйте голосовые каналы (WebRTC peer-to-peer)
+
+### Автоматизированное тестирование
+- Backend тесты: `cd backend && npm test`
+- Модели: Unit тесты для User, Message, Channel
+- Роуты: API тесты для регистрации, логина, каналов
+- Socket.IO: Интеграционные тесты WebSocket соединений
+- WebRTC: Тесты голосовых функций
+- Frontend: React компонентные тесты (Jest + Testing Library)
 
 ## Запуск в продакшене
 
@@ -193,15 +215,41 @@ FRONTEND_URL=http://localhost:3000
 2. Кастомные STUN серверы для надежности
 3. Поддержка multiple codecs
 4. Quality of Service управления
+### Настройка TURN сервера для продакшена
+
+1. **Создайте `.env` файл в `backend/`:**
+   ```
+   TURN_SECRET=ваш_секретный_ключ_для_turn_сервера
+   TURN_EXTERNAL_IP=ваш_публичный_ip_или_домен
+   ```
+
+2. **Настройка Docker Compose:**
+   - Переменные уже настроены в `docker-compose.yml`
+   - Запустите `docker-compose up -d` для запуска Coturn
+
+3. **Frontend переменные:**
+   Создайте `.env` файл в `frontend/`:
+   ```
+   REACT_APP_TURN_HOST=ваш-публичный-ip:3478
+   REACT_APP_TURN_USERNAME=ваш-turn-username
+   REACT_APP_TURN_CREDENTIAL=ваш-turn-credential
+   ```
+
+4. **Дополнительные настройки для продакшена:**
+   - Настройте TLS для TURN (порт 5349)
+   - Добавьте множественные TURN серверы для failover
+   - Используйте strong секреты и регулярное обновление credentials
+   - Мониторьте использование и нагрузку сервера
 
 ## Дальнейшее развитие
 
 Голосовые каналы WebRTC полностью реализованы. Подробный план развития см. в [TODO.md](TODO.md).
 Основные направления:
-- Unit/Integration тесты
-- TypeScript миграция
-- Redis для масштабирования
-- Docker контейнеризация
+- Увеличение код покрытия тестами (e2e, WebRTC интеграция)
+- TypeScript миграция для типобезопасности
+- Redis для кэширования и session management
+- Docker контейнеризация и CI/CD pipeline
+- Мониторинг производительности и APM
 
 ## Автор
 
