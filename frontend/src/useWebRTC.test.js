@@ -6,13 +6,13 @@ global.navigator.mediaDevices = {
   getUserMedia: jest.fn(),
 };
 
-// Mock RTCPeerConnection
+// Mock RTCPeerConnection with complete interface
 global.RTCPeerConnection = jest.fn().mockImplementation(() => ({
-  createOffer: jest.fn(),
-  createAnswer: jest.fn(),
-  setLocalDescription: jest.fn(),
-  setRemoteDescription: jest.fn(),
-  addIceCandidate: jest.fn(),
+  createOffer: jest.fn().mockResolvedValue({ type: 'offer', sdp: 'mock-sdp' }),
+  createAnswer: jest.fn().mockResolvedValue({ type: 'answer', sdp: 'mock-answer' }),
+  setLocalDescription: jest.fn().mockResolvedValue(),
+  setRemoteDescription: jest.fn().mockResolvedValue(),
+  addIceCandidate: jest.fn().mockResolvedValue(),
   addTrack: jest.fn(),
   close: jest.fn(),
   connectionState: 'connecting',
@@ -308,6 +308,207 @@ describe('useWebRTC', () => {
       rerender({ socket: mockSocket, channelId: null });
 
       expect(mockSocket.emit).toHaveBeenCalledWith('leave_voice_channel');
+    });
+  });
+
+  describe('Integrated WebRTC Flow', () => {
+    test('should handle complete peer connection flow', async () => {
+      const { result } = renderHook(() => useWebRTC(mockSocket, 'voice-test'));
+      const eventHandlers = {};
+
+      // Capture event handlers to simulate socket events
+      mockSocket.on.mock.calls.forEach(([event, handler]) => {
+        eventHandlers[event] = handler;
+      });
+
+      // Mock RTCPeerConnection methods for simulation
+      const mockPeerConnection = {
+        createOffer: jest.fn().mockResolvedValue({ type: 'offer', sdp: 'test-sdp' }),
+        createAnswer: jest.fn().mockResolvedValue({ type: 'answer', sdp: 'test-answer' }),
+        setLocalDescription: jest.fn().mockResolvedValue(),
+        setRemoteDescription: jest.fn().mockResolvedValue(),
+        addIceCandidate: jest.fn().mockResolvedValue(),
+        addTrack: jest.fn(),
+        close: jest.fn(),
+        connectionState: 'connected',
+        onicecandidate: null,
+        ontrack: null,
+        onconnectionstatechange: jest.fn(),
+      };
+      RTCPeerConnection.mockReturnValue(mockPeerConnection);
+
+      // Join voice channel first
+      await act(async () => {
+        await expect(result.current.joinVoiceChannel()).resolves.toBeUndefined();
+      });
+
+      // Simulate user joining (triggering offer creation)
+      await act(async () => {
+        await eventHandlers.user_joined_voice({
+          nickname: 'TestUser2',
+          socketId: 'socket123'
+        });
+      });
+
+      expect(mockPeerConnection.createOffer).toHaveBeenCalled();
+      expect(mockSocket.emit).toHaveBeenCalledWith('voice_offer', {
+        offer: { type: 'offer', sdp: 'test-sdp' },
+        targetSocketId: 'socket123'
+      });
+
+      // Simulate receiving offer from peer
+      await act(async () => {
+        await eventHandlers.voice_offer({
+          offer: { type: 'offer', sdp: 'peer-sdp' },
+          from: 'socket123',
+          fromNickname: 'TestUser2'
+        });
+      });
+
+      expect(mockPeerConnection.setRemoteDescription).toHaveBeenCalledWith(
+        new RTCSessionDescription({ type: 'offer', sdp: 'peer-sdp' })
+      );
+      expect(mockPeerConnection.createAnswer).toHaveBeenCalled();
+      expect(mockSocket.emit).toHaveBeenCalledWith('voice_answer', {
+        answer: { type: 'answer', sdp: 'test-answer' },
+        targetSocketId: 'socket123'
+      });
+
+      // Simulate receiving answer
+      await act(async () => {
+        await eventHandlers.voice_answer({
+          answer: { type: 'answer', sdp: 'peer-answer' },
+          from: 'socket123'
+        });
+      });
+
+      expect(mockPeerConnection.setRemoteDescription).toHaveBeenCalledWith(
+        new RTCSessionDescription({ type: 'answer', sdp: 'peer-answer' })
+      );
+
+      // Simulate receiving ICE candidate
+      await act(async () => {
+        await eventHandlers.ice_candidate({
+          candidate: { candidate: 'test-ice' },
+          from: 'socket123'
+        });
+      });
+
+      expect(mockPeerConnection.addIceCandidate).toHaveBeenCalledWith(
+        new RTCIceCandidate({ candidate: 'test-ice' })
+      );
+
+      expect(result.current.isConnected).toBe(true);
+    });
+
+    test('should handle multiple participants joining', async () => {
+      const { result } = renderHook(() => useWebRTC(mockSocket, 'voice-multi'));
+      const eventHandlers = {};
+
+      mockSocket.on.mock.calls.forEach(([event, handler]) => {
+        eventHandlers[event] = handler;
+      });
+
+      const mockPeerConnection = {
+        createOffer: jest.fn().mockResolvedValue({ type: 'offer', sdp: 'test-sdp' }),
+        setLocalDescription: jest.fn().mockResolvedValue(),
+        addTrack: jest.fn(),
+        close: jest.fn(),
+        onicecandidate: null,
+        ontrack: null,
+        onconnectionstatechange: jest.fn(),
+      };
+      RTCPeerConnection.mockReturnValue(mockPeerConnection);
+
+      await act(async () => {
+        await result.current.joinVoiceChannel();
+      });
+
+      // First user joins
+      await act(async () => {
+        await eventHandlers.user_joined_voice({
+          nickname: 'User1',
+          socketId: 'socket1'
+        });
+      });
+
+      // Second user joins
+      await act(async () => {
+        await eventHandlers.user_joined_voice({
+          nickname: 'User2',
+          socketId: 'socket2'
+        });
+      });
+
+      expect(mockSocket.emit).toHaveBeenCalledTimes(3); // join_channel + 2 offers
+      expect(RTCPeerConnection).toHaveBeenCalledTimes(2);
+    });
+
+    test('should handle participant leaving during active connection', async () => {
+      const { result } = renderHook(() => useWebRTC(mockSocket, 'voice-leave'));
+      const eventHandlers = {};
+
+      mockSocket.on.mock.calls.forEach(([event, handler]) => {
+        eventHandlers[event] = handler;
+      });
+
+      const mockPeerConnection = {
+        close: jest.fn(),
+        onicecandidate: null,
+        ontrack: null,
+        onconnectionstatechange: jest.fn(),
+      };
+      RTCPeerConnection.mockReturnValue(mockPeerConnection);
+
+      await act(async () => {
+        await result.current.joinVoiceChannel();
+      });
+
+      // Simulate user leaving without join, test cleanup
+      act(() => {
+        eventHandlers.user_left_voice({ socketId: 'socket123' });
+      });
+
+      expect(mockPeerConnection.close).not.toHaveBeenCalled(); // No connection created yet
+      expect(result.current.participants).toEqual([]);
+    });
+
+    test('should handle WebRTC errors gracefully', async () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const { result } = renderHook(() => useWebRTC(mockSocket, 'voice-error'));
+      const eventHandlers = {};
+
+      mockSocket.on.mock.calls.forEach(([event, handler]) => {
+        eventHandlers[event] = handler;
+      });
+
+      const mockPeerConnection = {
+        setRemoteDescription: jest.fn().mockRejectedValue(new Error('RTC Error')),
+        addTrack: jest.fn(),
+        onicecandidate: null,
+        ontrack: null,
+        onconnectionstatechange: jest.fn(),
+      };
+      RTCPeerConnection.mockReturnValue(mockPeerConnection);
+
+      await act(async () => {
+        await result.current.joinVoiceChannel();
+      });
+
+      await act(async () => {
+        try {
+          await eventHandlers.voice_offer({
+            offer: { type: 'offer', sdp: 'invalid-sdp' },
+            from: 'socket123',
+            fromNickname: 'ErrorUser'
+          });
+        } catch (error) {
+          // Expected error handled internally
+        }
+      });
+
+      expect(consoleSpy).toHaveBeenCalledWith('Error handling voice offer:', expect.any(Error));
+      consoleSpy.mockRestore();
     });
   });
 
