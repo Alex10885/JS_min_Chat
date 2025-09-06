@@ -8,6 +8,8 @@ services:
       - "5349:5349"
     environment:
       - TURN_SERVER_CONFIG=/etc/coturn/turnserver.conf
+      - TURN_SECRET=${TURN_SECRET}
+      - TURN_EXTERNAL_IP=${TURN_EXTERNAL_IP}
     volumes:
       - ./coturn.conf:/etc/coturn/turnserver.conf:ro
     networks:

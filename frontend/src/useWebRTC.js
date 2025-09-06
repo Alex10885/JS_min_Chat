@@ -16,9 +16,9 @@ const useWebRTC = (socket, voiceChannelId) => {
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
       {
-        urls: 'turn:localhost:3478',
-        username: 'testuser',
-        credential: 'testpass'
+        urls: `turn:${process.env.REACT_APP_TURN_HOST}`,
+        username: process.env.REACT_APP_TURN_USERNAME,
+        credential: process.env.REACT_APP_TURN_CREDENTIAL
       }
     ]
   };
