@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSnackbar } from 'notistack';
 
 const useWebRTC = (socket, voiceChannelId) => {
   const [isConnected, setIsConnected] = useState(false);
@@ -7,12 +8,18 @@ const useWebRTC = (socket, voiceChannelId) => {
   const localStreamRef = useRef(null);
   const peerConnectionsRef = useRef(new Map());
   const localAudioRef = useRef(null);
+  const { enqueueSnackbar } = useSnackbar();
 
   // Configuration for RTCPeerConnection
   const rtcConfiguration = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' }
+      { urls: 'stun:stun1.l.google.com:19302' },
+      {
+        urls: 'turn:localhost:3478',
+        username: 'testuser',
+        credential: 'testpass'
+      }
     ]
   };
 
@@ -38,47 +45,64 @@ const useWebRTC = (socket, voiceChannelId) => {
       return stream;
     } catch (error) {
       console.error('Failed to get local audio stream:', error);
+      enqueueSnackbar('Не удалось получить доступ к микрофону. Проверьте разрешения.', {
+        variant: 'error',
+        autoHideDuration: 5000
+      });
       throw error;
     }
   }, []);
 
   // Create peer connection
   const createPeerConnection = useCallback((socketId, nickname) => {
-    const peerConnection = new RTCPeerConnection(rtcConfiguration);
+    try {
+      const peerConnection = new RTCPeerConnection(rtcConfiguration);
 
-    peerConnection.onicecandidate = (event) => {
-      if (event.candidate && socket) {
-        socket.emit('ice_candidate', {
-          candidate: event.candidate,
-          targetSocketId: socketId
-        });
-      }
-    };
-
-    peerConnection.ontrack = (event) => {
-      setParticipants(prev => {
-        const existing = prev.find(p => p.socketId === socketId);
-        if (existing) {
-          if (existing.audioRef) {
-            existing.audioRef.srcObject = event.streams[0];
+      peerConnection.onicecandidate = (event) => {
+        try {
+          if (event.candidate && socket) {
+            socket.emit('ice_candidate', {
+              candidate: event.candidate,
+              targetSocketId: socketId
+            });
           }
-          return prev;
+        } catch (error) {
+          console.error('Error sending ICE candidate:', error);
         }
-        return [...prev, {
-          socketId,
-          nickname,
-          audioRef: null,
-          stream: event.streams[0]
-        }];
+      };
+
+      peerConnection.ontrack = (event) => {
+        setParticipants(prev => {
+          const existing = prev.find(p => p.socketId === socketId);
+          if (existing) {
+            if (existing.audioRef) {
+              existing.audioRef.srcObject = event.streams[0];
+            }
+            return prev;
+          }
+          return [...prev, {
+            socketId,
+            nickname,
+            audioRef: null,
+            stream: event.streams[0]
+          }];
+        });
+      };
+
+      peerConnection.onconnectionstatechange = () => {
+        console.log(`Connection state with ${nickname}:`, peerConnection.connectionState);
+      };
+
+      return peerConnection;
+    } catch (error) {
+      console.error('Error creating peer connection:', error);
+      enqueueSnackbar('Не удалось создать соединение для голосового чата', {
+        variant: 'error',
+        autoHideDuration: 5000
       });
-    };
-
-    peerConnection.onconnectionstatechange = () => {
-      console.log(`Connection state with ${nickname}:`, peerConnection.connectionState);
-    };
-
-    return peerConnection;
-  }, [socket]);
+      return null;
+    }
+  }, [socket, enqueueSnackbar]);
 
   // Handle incoming offer
   useEffect(() => {
@@ -205,6 +229,10 @@ const useWebRTC = (socket, voiceChannelId) => {
       socket.emit('join_voice_channel', { channelId: voiceChannelId });
     } catch (error) {
       console.error('Failed to join voice channel:', error);
+      enqueueSnackbar('Не удалось присоединиться к голосовому каналу', {
+        variant: 'error',
+        autoHideDuration: 5000
+      });
     }
   }, [socket, voiceChannelId, getLocalStream]);
 

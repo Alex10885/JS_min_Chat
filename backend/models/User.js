@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const userSchema = new mongoose.Schema({
   nickname: {
@@ -39,6 +40,14 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ['online', 'offline'],
     default: 'offline'
+  },
+  resetPasswordToken: {
+    type: String,
+    default: null
+  },
+  resetPasswordExpires: {
+    type: Date,
+    default: null
   }
 });
 
@@ -62,6 +71,45 @@ userSchema.pre('save', async function(next) {
 // Compare password method
 userSchema.methods.comparePassword = async function(candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
+};
+
+// Generate reset password token
+userSchema.methods.generateResetToken = function() {
+  // Generate random token
+  const resetToken = crypto.randomBytes(32).toString('hex');
+
+  // Hash token before storing
+  this.resetPasswordToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+
+  // Set expiration (1 hour from now)
+  this.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 1 hour
+
+  return resetToken;
+};
+
+// Reset password using token
+userSchema.methods.resetPassword = function(token, newPassword) {
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(token)
+    .digest('hex');
+
+  if (hashedToken !== this.resetPasswordToken) {
+    throw new Error('Invalid or expired password reset token');
+  }
+
+  if (Date.now() > this.resetPasswordExpires) {
+    throw new Error('Password reset token has expired');
+  }
+
+  this.password = newPassword;
+  this.resetPasswordToken = null;
+  this.resetPasswordExpires = null;
+
+  return this.save();
 };
 
 // Remove password from JSON output

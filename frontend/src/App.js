@@ -3,6 +3,7 @@ import ErrorBoundary from './ErrorBoundary';
 import useSocket from './useSocket';
 import useWebRTC from './useWebRTC';
 import axios from 'axios';
+
 import { Container, Paper, TextField, Button, List, ListItem, Typography, Box, ListItemText, Avatar, ThemeProvider, createTheme, CssBaseline, Badge, Drawer, IconButton, useMediaQuery } from '@mui/material';
 import { SnackbarProvider, useSnackbar } from 'notistack';
 import Grid from '@mui/material/Grid';
@@ -60,6 +61,81 @@ function App() {
   const [token, setToken] = useState(localStorage.getItem('chatToken') || '');
   const [nickname, setNickname] = useState('User1');
   const [role, setRole] = useState('member');
+
+  // Configure axios interceptors
+  useEffect(() => {
+    // Configure axios defaults
+    axios.defaults.baseURL = 'http://localhost:3001';
+    axios.defaults.timeout = 10000; // 10 seconds timeout
+
+    // Request interceptor for auth tokens
+    const requestInterceptor = axios.interceptors.request.use(
+      (config) => {
+        const token = localStorage.getItem('chatToken');
+        if (token) {
+          config.headers['Authorization'] = `Bearer ${token}`;
+        }
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+
+    // Response interceptor for error handling
+    const responseInterceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.code === 'ECONNABORTED') {
+          // Timeout error
+          error.userMessage = 'Превышено время ожидания запроса. Проверьте соединение.';
+        } else if (error.response) {
+          // Server responded with error status
+          const { status, data } = error.response;
+          switch (status) {
+            case 400:
+              error.userMessage = data.error || data.message || 'Неверные данные запроса';
+              break;
+            case 401:
+              error.userMessage = data.error || data.message || 'Требуется авторизация';
+              // Clear token on auth failure
+              localStorage.removeItem('chatToken');
+              setToken(''); // Trigger re-auth
+              break;
+            case 403:
+              error.userMessage = data.error || data.message || 'Доступ запрещен';
+              break;
+            case 404:
+              error.userMessage = data.error || data.message || 'Запрашиваемый ресурс не найден';
+              break;
+            case 409:
+              error.userMessage = data.error || data.message || 'Конфликт данных';
+              break;
+            case 429:
+              error.userMessage = data.error || data.message || 'Слишком много запросов. Попробуйте позже.';
+              break;
+            case 500:
+              error.userMessage = 'Внутренняя ошибка сервера. Попробуйте позже.';
+              break;
+            default:
+              error.userMessage = data.error || data.message || `Ошибка сервера: ${status}`;
+          }
+        } else if (error.request) {
+          // Network error
+          error.userMessage = 'Проблема с подключением к сети. Проверьте интернет-соединение.';
+        } else {
+          // Something else
+          error.userMessage = error.message || 'Неизвестная ошибка';
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    // Cleanup function
+    return () => {
+      axios.interceptors.request.eject(requestInterceptor);
+      axios.interceptors.response.eject(responseInterceptor);
+    };
+  }, [setToken]);
+
   const [room, setRoom] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -95,7 +171,7 @@ function App() {
       // Register new user if not already logged in
       // For demo purposes, we'll use a simple auto-registration
       const defaultEmail = `${nickname.toLowerCase()}@example.com`;
-      axios.post('http://localhost:3001/register', {
+      axios.post('/register', {
         nickname: nickname,
         email: defaultEmail,
         password: 'password123' // In production, this would be user input
@@ -107,20 +183,24 @@ function App() {
           enqueueSnackbar(`Добро пожаловать, ${res.data.user.nickname}!`, { variant: 'success' });
         })
         .catch(err => {
-          // Try login if registration failed (user might already exist)
-          axios.post('http://localhost:3001/login', {
-            identifier: nickname,
-            password: 'password123'
-          })
-            .then(res => {
-              setToken(res.data.token);
-              localStorage.setItem('chatToken', res.data.token);
-              setRole(res.data.user.role);
+          if (err.userMessage) {
+            enqueueSnackbar(err.userMessage, { variant: 'error' });
+          } else {
+            // Try login if registration failed (user might already exist)
+            axios.post('/login', {
+              identifier: nickname,
+              password: 'password123'
             })
-            .catch(loginErr => {
-              console.error('Auth failed:', loginErr);
-              enqueueSnackbar('Ошибка аутентификации', { variant: 'error' });
-            });
+              .then(res => {
+                setToken(res.data.token);
+                localStorage.setItem('chatToken', res.data.token);
+                setRole(res.data.user.role);
+              })
+              .catch(loginErr => {
+                console.error('Auth failed:', loginErr);
+                enqueueSnackbar(loginErr.userMessage || 'Ошибка аутентификации', { variant: 'error' });
+              });
+          }
         });
     }
   }, [token, nickname, enqueueSnackbar]);

@@ -8,8 +8,10 @@ const winston = require('winston');
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
 const { connectDB, closeDB } = require('./db/connection');
+const emailService = require('./services/emailService');
 
 // Import models
 const User = require('./models/User');
@@ -38,6 +40,39 @@ const logger = winston.createLogger({
 
 const app = express();
 const server = http.createServer(app);
+
+// Rate limiting configuration
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 auth requests per windowMs
+  message: { error: 'Too many authentication attempts, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 API requests per windowMs
+  message: { error: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const generalRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 1000, // Limit each IP to 1000 requests per windowMs
+  message: { error: 'Too many requests from this IP, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const passwordResetRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 3, // Limit each IP to 3 password reset requests per windowMs
+  message: { error: 'Too many password reset requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 const io = socketIo(server, {
   cors: {
     origin: true,
@@ -45,8 +80,146 @@ const io = socketIo(server, {
   }
 });
 
-app.use(cors());
-app.use(express.json());
+// CORS configuration
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production'
+    ? process.env.ALLOWED_ORIGINS?.split(',') || false
+    : true,
+  credentials: true
+}));
+
+app.use(express.json({ limit: '10mb' })); // Add payload size limit
+
+// Error handling middleware
+const errorHandler = (err, req, res, next) => {
+  logger.error('Unhandled error:', {
+    message: err.message,
+    stack: err.stack,
+    url: req.url,
+    method: req.method,
+    ip: req.ip,
+    userAgent: req.get('User-Agent')
+  });
+
+  // Mongoose validation errors
+  if (err.name === 'ValidationError') {
+    const errors = Object.values(err.errors).map(e => ({
+      field: e.path,
+      message: e.message,
+      value: e.value
+    }));
+
+    return res.status(422).json({
+      error: 'Validation failed',
+      details: errors,
+      code: 'VALIDATION_ERROR'
+    });
+  }
+
+  // Mongoose duplicate key error
+  if (err.code === 11000) {
+    const field = Object.keys(err.keyValue)[0];
+    const value = err.keyValue[field];
+    return res.status(409).json({
+      error: `${field} '${value}' already exists`,
+      code: 'DUPLICATE_ERROR'
+    });
+  }
+
+  // JWT errors
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({
+      error: 'Invalid or expired token',
+      code: 'INVALID_TOKEN'
+    });
+  }
+
+  if (err.name === 'TokenExpiredError') {
+    return res.status(401).json({
+      error: 'Token has expired',
+      code: 'TOKEN_EXPIRED'
+    });
+  }
+
+  // Default server error
+  res.status(500).json({
+    error: 'Internal server error',
+    code: 'INTERNAL_ERROR',
+    requestId: req.id || 'unknown'
+  });
+};
+
+// Request logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    logger.info(`${req.method} ${req.url} - ${res.statusCode} (${duration}ms)`, {
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+      user: req.user?.nickname || 'anonymous',
+      body: req.method !== 'GET' ? JSON.stringify(req.body) : undefined
+    });
+  });
+
+  next();
+});
+
+// JWT authentication middleware
+const authenticateToken = async (req, res, next) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+    if (!token) {
+      return res.status(401).json({
+        error: 'Access token required',
+        code: 'NO_TOKEN'
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      return res.status(401).json({
+        error: 'User not found',
+        code: 'USER_NOT_FOUND'
+      });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    logger.warn('JWT authentication failed:', {
+      error: error.message,
+      ip: req.ip
+    });
+
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        error: 'Invalid token format',
+        code: 'INVALID_TOKEN_FORMAT'
+      });
+    }
+
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        error: 'Token has expired',
+        code: 'TOKEN_EXPIRED'
+      });
+    }
+
+    return res.status(401).json({
+      error: 'Token verification failed',
+      code: 'TOKEN_VERIFICATION_FAILED'
+    });
+  }
+};
+
+// General rate limiting (applied to all HTTP requests)
+app.use(generalRateLimiter);
 
 // Helmet security headers
 app.use(
@@ -287,58 +460,85 @@ app.get('/api-docs.json', (req, res) => {
   res.send(swaggerSpec);
 });
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  logger.warn(`404 - ${req.method} ${req.url}`, {
+    ip: req.ip,
+    userAgent: req.get('User-Agent')
+  });
+
+  res.status(404).json({
+    error: 'Endpoint not found',
+    path: req.url,
+    method: req.method,
+    code: 'NOT_FOUND'
+  });
+});
+
+// Global error handling middleware (must be last)
+app.use(errorHandler);
+
 // Authentication endpoints
 /**
- * @swagger
- * /register:
- *   post:
- *     tags:
- *       - Authentication
- *     summary: Register a new user
- *     description: Creates a new user account with nickname, email, and password
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/RegisterRequest'
- *           example:
- *             nickname: "john_doe"
- *             email: "john@example.com"
- *             password: "securePass123"
- *     responses:
- *       201:
- *         description: User registered successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/AuthResponse'
- *             example:
- *               token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
- *               user:
- *                 id: "507f1f77bcf86cd799439011"
- *                 nickname: "john_doe"
- *                 email: "john@example.com"
- *                 role: "member"
- *       400:
- *         description: Validation error or user already exists
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             examples:
- *               validation:
- *                 value:
- *                   errors: [
- *                     { msg: "Nickname must be at least 3 chars long", param: "nickname" }
- *                   ]
- *               duplicate:
- *                 value:
- *                   error: "Nickname already taken"
- *       500:
- *         description: Server error
- */
-app.post('/register', [
+  * @swagger
+  * /register:
+  *   post:
+  *     tags:
+  *       - Authentication
+  *     summary: Register a new user
+  *     description: Creates a new user account with nickname, email, and password
+  *     requestBody:
+  *       required: true
+  *       content:
+  *         application/json:
+  *           schema:
+  *             $ref: '#/components/schemas/RegisterRequest'
+  *           example:
+  *             nickname: "john_doe"
+  *             email: "john@example.com"
+  *             password: "securePass123"
+  *     responses:
+  *       201:
+  *         description: User registered successfully
+  *         content:
+  *           application/json:
+  *             schema:
+  *               $ref: '#/components/schemas/AuthResponse'
+  *             example:
+  *               token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  *               user:
+  *                 id: "507f1f77bcf86cd799439011"
+  *                 nickname: "john_doe"
+  *                 email: "john@example.com"
+  *                 role: "member"
+  *       400:
+  *         description: Validation error or user already exists
+  *         content:
+  *           application/json:
+  *             schema:
+  *               $ref: '#/components/schemas/ErrorResponse'
+  *             examples:
+  *               validation:
+  *                 value:
+  *                   errors: [
+  *                     { msg: "Nickname must be at least 3 chars long", param: "nickname" }
+  *                   ]
+  *               duplicate:
+  *                 value:
+  *                   error: "Nickname already taken"
+  *       500:
+  *         description: Server error
+  */
+app.post('/register', authRateLimiter, [
   body('nickname').isLength({ min: 3, max: 50 }).trim().escape(),
   body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 6 })
@@ -361,8 +561,11 @@ app.post('/register', [
     logger.info(`Existing user check result: ${existingUser ? `Found user with nickname: ${existingUser.nickname}, email: ${existingUser.email}` : 'No existing user found'}`);
 
     if (existingUser) {
-      return res.status(400).json({
-        error: existingUser.nickname === nickname ? 'Nickname already taken' : 'Email already registered'
+      const errorMsg = existingUser.nickname === nickname ? 'Nickname already taken' : 'Email already registered';
+      return res.status(409).json({
+        error: errorMsg,
+        field: existingUser.nickname === nickname ? 'nickname' : 'email',
+        code: 'DUPLICATE_USER'
       });
     }
 
@@ -404,56 +607,56 @@ app.post('/register', [
 });
 
 /**
- * @swagger
- * /login:
- *   post:
- *     tags:
- *       - Authentication
- *     summary: Login user
- *     description: Authenticates user with nickname or email and returns JWT token
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/LoginRequest'
- *           example:
- *             identifier: "john_doe"
- *             password: "securePass123"
- *     responses:
- *       200:
- *         description: Login successful
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/AuthResponse'
- *             example:
- *               token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
- *               user:
- *                 id: "507f1f77bcf86cd799439011"
- *                 nickname: "john_doe"
- *                 email: "john@example.com"
- *                 role: "member"
- *       401:
- *         description: Invalid credentials
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               error: "Invalid credentials"
- *       400:
- *         description: Missing required fields
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               error: "Identifier and password required"
- *       500:
- *         description: Server error
- */
-app.post('/login', async (req, res) => {
+  * @swagger
+  * /login:
+  *   post:
+  *     tags:
+  *       - Authentication
+  *     summary: Login user
+  *     description: Authenticates user with nickname or email and returns JWT token
+  *     requestBody:
+  *       required: true
+  *       content:
+  *         application/json:
+  *           schema:
+  *             $ref: '#/components/schemas/LoginRequest'
+  *           example:
+  *             identifier: "john_doe"
+  *             password: "securePass123"
+  *     responses:
+  *       200:
+  *         description: Login successful
+  *         content:
+  *           application/json:
+  *             schema:
+  *               $ref: '#/components/schemas/AuthResponse'
+  *             example:
+  *               token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  *               user:
+  *                 id: "507f1f77bcf86cd799439011"
+  *                 nickname: "john_doe"
+  *                 email: "john@example.com"
+  *                 role: "member"
+  *       401:
+  *         description: Invalid credentials
+  *         content:
+  *           application/json:
+  *             schema:
+  *               $ref: '#/components/schemas/ErrorResponse'
+  *             example:
+  *               error: "Invalid credentials"
+  *       400:
+  *         description: Missing required fields
+  *         content:
+  *           application/json:
+  *             schema:
+  *               $ref: '#/components/schemas/ErrorResponse'
+  *             example:
+  *               error: "Identifier and password required"
+  *       500:
+  *         description: Server error
+  */
+app.post('/login', authRateLimiter, async (req, res) => {
   try {
     const { identifier, password } = req.body;
 
@@ -498,43 +701,256 @@ app.post('/login', async (req, res) => {
 });
 
 /**
- * @swagger
- * /channels:
- *   get:
- *     tags:
- *       - Channels
- *     summary: Get all channels
- *     description: Retrieves a list of all available channels (text and voice)
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of channels retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Channel'
- *             example:
- *               - id: "general"
- *                 name: "General"
- *                 type: "text"
- *                 createdBy: "system"
- *                 position: 0
- *               - id: "voice-chat"
- *                 name: "Voice Chat"
- *                 type: "voice"
- *                 createdBy: "system"
- *                 position: 1
- *       500:
- *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-app.get('/channels', async (req, res) => {
+  * @swagger
+  * /forgot-password:
+  *   post:
+  *     tags:
+  *       - Authentication
+  *     summary: Request password reset
+  *     description: Send password reset email for the specified email address
+  *     requestBody:
+  *       required: true
+  *       content:
+  *         application/json:
+  *           schema:
+  *             type: object
+  *             required:
+  *               - email
+  *             properties:
+  *               email:
+  *                 type: string
+  *                 format: email
+  *                 description: User email address
+  *     responses:
+  *       200:
+  *         description: Password reset email sent successfully
+  *         content:
+  *           application/json:
+  *             schema:
+  *               type: object
+  *               properties:
+  *                 message:
+  *                   type: string
+  *                 code:
+  *                   type: string
+  *       400:
+  *         description: Invalid email format
+  *       404:
+  *         description: User not found
+  *       429:
+  *         description: Too many requests
+  *       500:
+  *         description: Server error
+  */
+app.post('/forgot-password', passwordResetRateLimiter, [
+  body('email').isEmail().normalizeEmail()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        error: 'Invalid email format',
+        details: errors.array(),
+        code: 'VALIDATION_ERROR'
+      });
+    }
+
+    const { email } = req.body;
+
+    logger.info(`Password reset request for email: ${email}`);
+
+    // Find user by email
+    const user = await User.findOne({ email });
+
+    // Don't reveal if user exists or not for security
+    if (!user) {
+      logger.warn(`Password reset requested for non-existent email: ${email}`);
+      return res.status(200).json({
+        message: 'If an account with this email exists, a password reset link has been sent.',
+        code: 'RESET_EMAIL_SENT'
+      });
+    }
+
+    // Generate reset token
+    const resetToken = user.generateResetToken();
+    await user.save();
+
+    // Send email
+    try {
+      await emailService.sendPasswordResetEmail(user.email, resetToken);
+
+      logger.info(`Password reset email sent to: ${email}`);
+      res.json({
+        message: 'Password reset email sent successfully',
+        code: 'RESET_EMAIL_SENT'
+      });
+    } catch (emailError) {
+      logger.error('Error sending password reset email:', emailError);
+
+      // Clear the token if email fails
+      user.resetPasswordToken = null;
+      user.resetPasswordExpires = null;
+      await user.save();
+
+      throw emailError;
+    }
+
+  } catch (error) {
+    logger.error('Forgot password error:', error);
+    res.status(500).json({
+      error: 'Failed to process password reset request',
+      code: 'INTERNAL_ERROR'
+    });
+  }
+});
+
+/**
+  * @swagger
+  * /reset-password:
+  *   post:
+  *     tags:
+  *       - Authentication
+  *     summary: Reset password using token
+  *     description: Reset user password using the token received via email
+  *     requestBody:
+  *       required: true
+  *       content:
+  *         application/json:
+  *           schema:
+  *             type: object
+  *             required:
+  *               - token
+  *               - password
+  *             properties:
+  *               token:
+  *                 type: string
+  *                 description: Password reset token
+  *               password:
+  *                 type: string
+  *                 minLength: 6
+  *                 description: New password
+  *     responses:
+  *       200:
+  *         description: Password reset successfully
+  *         content:
+  *           application/json:
+  *             schema:
+  *               type: object
+  *               properties:
+  *                 message:
+  *                   type: string
+  *                 code:
+  *                   type: string
+  *       400:
+  *         description: Invalid token or password
+  *       410:
+  *         description: Token expired
+  *       500:
+  *         description: Server error
+  */
+app.post('/reset-password', [
+  body('token').trim().isLength({ min: 1 }),
+  body('password').isLength({ min: 6 })
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        error: 'Invalid input data',
+        details: errors.array(),
+        code: 'VALIDATION_ERROR'
+      });
+    }
+
+    const { token, password } = req.body;
+
+    logger.info(`Password reset attempt with token: ${token.substring(0, 10)}...`);
+
+    // Find user with valid reset token
+    const user = await User.findOne({
+      resetPasswordToken: crypto
+        .createHash('sha256')
+        .update(token)
+        .digest('hex'),
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      logger.warn('Invalid or expired password reset token');
+      return res.status(400).json({
+        error: 'Invalid or expired password reset token',
+        code: 'INVALID_RESET_TOKEN'
+      });
+    }
+
+    // Reset password
+    user.password = password;
+    user.resetPasswordToken = null;
+    user.resetPasswordExpires = null;
+    await user.save();
+
+    logger.info(`Password reset successful for user: ${user.nickname}`);
+
+    // Send confirmation email
+    try {
+      await emailService.sendPasswordResetSuccessEmail(user.email);
+    } catch (emailError) {
+      logger.warn('Failed to send password reset success email:', emailError);
+      // Don't fail the request if confirmation email fails
+    }
+
+    res.json({
+      message: 'Password reset successful',
+      code: 'PASSWORD_RESET_SUCCESS'
+    });
+
+  } catch (error) {
+    logger.error('Reset password error:', error);
+    res.status(500).json({
+      error: 'Failed to reset password',
+      code: 'INTERNAL_ERROR'
+    });
+  }
+});
+
+/**
+  * @swagger
+  * /channels:
+  *   get:
+  *     tags:
+  *       - Channels
+  *     summary: Get all channels
+  *     description: Retrieves a list of all available channels (text and voice)
+  *     security:
+  *       - bearerAuth: []
+  *     responses:
+  *       200:
+  *         description: List of channels retrieved successfully
+  *         content:
+  *           application/json:
+  *             schema:
+  *               type: array
+  *               items:
+  *                 $ref: '#/components/schemas/Channel'
+  *             example:
+  *               - id: "general"
+  *                 name: "General"
+  *                 type: "text"
+  *                 createdBy: "system"
+  *                 position: 0
+  *               - id: "voice-chat"
+  *                 name: "Voice Chat"
+  *                 type: "voice"
+  *                 createdBy: "system"
+  *                 position: 1
+  *       500:
+  *         description: Server error
+  *         content:
+  *           application/json:
+  *             schema:
+  *               $ref: '#/components/schemas/ErrorResponse'
+  */
+app.get('/channels', apiRateLimiter, authenticateToken, async (req, res) => {
   try {
     const channels = await Channel.find().sort({ position: 1, createdAt: 1 });
     res.json(channels);
@@ -545,58 +961,58 @@ app.get('/channels', async (req, res) => {
 });
 
 /**
- * @swagger
- * /channels:
- *   post:
- *     tags:
- *       - Channels
- *     summary: Create a new channel
- *     description: Creates a new text or voice channel
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/ChannelRequest'
- *           example:
- *             name: "Random Chat"
- *             type: "text"
- *             description: "General discussion channel"
- *     responses:
- *       201:
- *         description: Channel created successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Channel'
- *             example:
- *               id: "random_chat"
- *               name: "Random Chat"
- *               type: "text"
- *               description: "General discussion channel"
- *               createdBy: "john_doe"
- *               position: 0
- *       400:
- *         description: Validation error or channel already exists
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             examples:
- *               validation:
- *                 value:
- *                   errors: [
- *                     { msg: "Channel name is required", param: "name" }
- *                   ]
- *               duplicate:
- *                 value:
- *                   error: "Channel already exists"
- *       500:
- *         description: Server error
- */
-app.post('/channels', [
+  * @swagger
+  * /channels:
+  *   post:
+  *     tags:
+  *       - Channels
+  *     summary: Create a new channel
+  *     description: Creates a new text or voice channel
+  *     security:
+  *       - bearerAuth: []
+  *     requestBody:
+  *       required: true
+  *       content:
+  *         application/json:
+  *           schema:
+  *             $ref: '#/components/schemas/ChannelRequest'
+  *           example:
+  *             name: "Random Chat"
+  *             type: "text"
+  *             description: "General discussion channel"
+  *     responses:
+  *       201:
+  *         description: Channel created successfully
+  *         content:
+  *           application/json:
+  *             schema:
+  *               $ref: '#/components/schemas/Channel'
+  *             example:
+  *               id: "random_chat"
+  *               name: "Random Chat"
+  *               type: "text"
+  *               description: "General discussion channel"
+  *               createdBy: "john_doe"
+  *               position: 0
+  *       400:
+  *         description: Validation error or channel already exists
+  *         content:
+  *           application/json:
+  *             schema:
+  *               $ref: '#/components/schemas/ErrorResponse'
+  *             examples:
+  *               validation:
+  *                 value:
+  *                   errors: [
+  *                     { msg: "Channel name is required", param: "name" }
+  *                   ]
+  *               duplicate:
+  *                 value:
+  *                   error: "Channel already exists"
+  *       500:
+  *         description: Server error
+  */
+app.post('/channels', apiRateLimiter, authenticateToken, [
   body('name').isLength({ min: 1, max: 100 }).trim().escape(),
   body('type').isIn(['text', 'voice'])
 ], async (req, res) => {
@@ -642,9 +1058,15 @@ const voiceChannels = new Map(); // channelId -> { socketId: { peerConnection, s
 
 io.use(async (socket, next) => {
   const token = socket.handshake.auth.token;
-  logger.info('Socket authentication attempt, token present:', !!token);
+  logger.info('Socket authentication attempt, token present:', !!token, {
+    remoteAddress: socket.handshake.address,
+    userAgent: socket.handshake.headers['user-agent']
+  });
 
   if (!token) {
+    logger.warn('Socket authentication failed: No token provided', {
+      remoteAddress: socket.handshake.address
+    });
     return next(new Error('Authentication token required'));
   }
 
@@ -652,20 +1074,51 @@ io.use(async (socket, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id);
 
-    logger.info(`Decoded token: ${decoded.nickname}, user found: ${!!user}`);
+    logger.info(`Socket auth success: ${decoded.nickname}, user found: ${!!user}`, {
+      userId: decoded.id,
+      nickname: decoded.nickname,
+      remoteAddress: socket.handshake.address
+    });
 
     if (!user) {
+      logger.warn('Socket authentication failed: User not found', {
+        userId: decoded.id,
+        remoteAddress: socket.handshake.address
+      });
       return next(new Error('User not found'));
+    }
+
+    if (user.status !== 'online') {
+      logger.warn('Socket authentication failed: User not online', {
+        userId: user._id,
+        nickname: user.nickname,
+        status: user.status,
+        remoteAddress: socket.handshake.address
+      });
+      return next(new Error('User account is not active'));
     }
 
     socket.userId = decoded.id;
     socket.nickname = decoded.nickname;
     socket.role = decoded.role;
-    logger.info(`Socket authenticated for user: ${socket.nickname}`);
+    logger.info(`Socket fully authenticated: ${socket.nickname}`);
     return next();
   } catch (err) {
-    logger.error('Socket authentication error:', err.message);
-    return next(new Error('Authentication error'));
+    logger.error('Socket authentication error:', {
+      error: err.message,
+      stack: err.stack,
+      remoteAddress: socket.handshake.address
+    });
+
+    if (err.name === 'JsonWebTokenError') {
+      return next(new Error('Invalid authentication token'));
+    }
+
+    if (err.name === 'TokenExpiredError') {
+      return next(new Error('Authentication token has expired'));
+    }
+
+    return next(new Error('Authentication failed'));
   }
 });
 
@@ -682,13 +1135,48 @@ io.on('connection', async (socket) => {
 
   socket.on('join_room', async (data) => {
     const { room } = data;
-    if (!room) return;
+    if (!room) {
+      logger.warn('Join room failed: No room specified', {
+        userId: socket.userId,
+        nickname: socket.nickname
+      });
+      socket.emit('error', {
+        message: 'Room name is required',
+        code: 'MISSING_ROOM',
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+
+    if (typeof room !== 'string' || room.trim().length === 0) {
+      logger.warn('Join room failed: Invalid room format', {
+        userId: socket.userId,
+        nickname: socket.nickname,
+        room
+      });
+      socket.emit('error', {
+        message: 'Invalid room name format',
+        code: 'INVALID_ROOM_FORMAT',
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
 
     try {
       // Verify channel exists
       const channel = await Channel.findOne({ id: room });
       if (!channel) {
-        socket.emit('error', { message: 'Channel not found' });
+        logger.warn('Join room failed: Channel not found', {
+          userId: socket.userId,
+          nickname: socket.nickname,
+          room
+        });
+        socket.emit('error', {
+          message: `Channel '${room}' not found`,
+          code: 'CHANNEL_NOT_FOUND',
+          room,
+          timestamp: new Date().toISOString()
+        });
         return;
       }
 

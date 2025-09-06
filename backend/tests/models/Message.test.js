@@ -160,4 +160,173 @@ describe('Message Model', () => {
       }
     });
   });
+
+  describe('Message Status', () => {
+    it('should default status to delivered', async () => {
+      const messageData = {
+        author: 'testuser',
+        channel: 'general',
+        text: 'Test message',
+        type: 'public'
+      };
+
+      const message = new Message(messageData);
+      const savedMessage = await message.save();
+
+      expect(savedMessage.status).toBe('delivered');
+    });
+
+    it('should accept different status values', async () => {
+      const statuses = ['delivered', 'failed'];
+
+      for (const status of statuses) {
+        const message = new Message({
+          author: 'testuser',
+          channel: 'general',
+          text: `Message with status ${status}`,
+          type: 'public',
+          status: status
+        });
+
+        const savedMessage = await message.save();
+        expect(savedMessage.status).toBe(status);
+      }
+    });
+  });
+
+  describe('Timestamps', () => {
+    it('should set timestamp on creation', async () => {
+      const beforeCreate = new Date();
+      const message = new Message({
+        author: 'testuser',
+        channel: 'general',
+        text: 'Timestamp test',
+        type: 'public'
+      });
+
+      const savedMessage = await message.save();
+      const afterCreate = new Date();
+
+      expect(savedMessage.timestamp).toBeDefined();
+      expect(savedMessage.timestamp.getTime()).toBeGreaterThanOrEqual(beforeCreate.getTime());
+      expect(savedMessage.timestamp.getTime()).toBeLessThanOrEqual(afterCreate.getTime());
+    });
+  });
+
+  describe('Target Validation', () => {
+    it('should allow null target for private messages', async () => {
+      const message = new Message({
+        author: 'sender',
+        channel: 'general',
+        text: 'Private message',
+        type: 'private',
+        target: null
+      });
+
+      const savedMessage = await message.save();
+      expect(savedMessage.target).toBeNull();
+    });
+
+    it('should handle empty targets correctly', async () => {
+      const message = new Message({
+        author: 'sender',
+        channel: 'general',
+        text: 'Empty target test',
+        type: 'private',
+        target: ''
+      });
+
+      const savedMessage = await message.save();
+      expect(savedMessage.target).toBe('');
+    });
+  });
+
+  describe('Channel-based Queries', () => {
+    it('should filter messages by channel', async () => {
+      // Create messages in different channels
+      await new Message({
+        author: 'user1',
+        channel: 'general',
+        text: 'General message',
+        type: 'public'
+      }).save();
+
+      await new Message({
+        author: 'user2',
+        channel: 'random',
+        text: 'Random message',
+        type: 'public'
+      }).save();
+
+      await new Message({
+        author: 'user3',
+        channel: 'general',
+        text: 'Another general message',
+        type: 'public'
+      }).save();
+
+      const generalMessages = await Message.find({ channel: 'general' });
+      const randomMessages = await Message.find({ channel: 'random' });
+
+      expect(generalMessages.length).toBe(2);
+      expect(randomMessages.length).toBe(1);
+    });
+
+    it('should filter by multiple criteria', async () => {
+      await new Message({
+        author: 'testuser',
+        channel: 'general',
+        text: 'Public message',
+        type: 'public'
+      }).save();
+
+      await new Message({
+        author: 'testuser',
+        channel: 'general',
+        text: 'Private message',
+        type: 'private',
+        target: 'recipient'
+      }).save();
+
+      const publicMessages = await Message.find({
+        channel: 'general',
+        type: 'public'
+      });
+
+      const privateMessages = await Message.find({
+        channel: 'general',
+        type: 'private'
+      });
+
+      expect(publicMessages.length).toBe(1);
+      expect(privateMessages.length).toBe(1);
+    });
+  });
+
+  describe('Text Validation', () => {
+    it('should allow unicode characters', async () => {
+      const unicodeText = 'Привет, мир! 🌍 こんにちは';
+      const message = new Message({
+        author: 'unicodetest',
+        channel: 'general',
+        text: unicodeText,
+        type: 'public'
+      });
+
+      const savedMessage = await message.save();
+      expect(savedMessage.text).toBe(unicodeText);
+    });
+
+    it('should preserve whitespace in text', async () => {
+      const message = new Message({
+        author: 'whitespacetest',
+        channel: 'general',
+        text: '  Text with spaces  ',
+        type: 'public'
+      });
+
+      const savedMessage = await message.save();
+      expect(savedMessage.text).toBe('  Text with spaces  ');
+    });
+  });
 });

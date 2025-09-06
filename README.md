@@ -13,13 +13,23 @@ graph TD
     C --> D[JWT Authentication]
     C --> E[Room/Channel Management]
     C --> F[MongoDB + Mongoose]
-    C -.-> G[WebRTC Voice - Future]
+    C -.-> G[WebRTC Voice]
+    
+        subgraph Voice Channels
+            G --> H[JOIN/LEAVE Voice Channels]
+            H --> I[Peer-to-Peer WebRTC]
+            I --> J[ICE Candidates Exchange]
+            J --> K[Audio Stream Management]
+            K --> L[Mic Mute/Unmute]
+            L --> M[Echo Cancellation]
+            M --> N[Noise Suppression]
+        end
 
     subgraph Frontend
         A --> H[Channel Sidebar with Accordion]
         A --> I[Chat Area with Message History]
         A --> J[User List + Private DMs]
-        A --> K[Voice Channel UI (WebRTC pending)]
+        A --> K[Voice Channel UI (WebRTC implemented)]
         A --> L[Mobile Responsive Drawer]
         A --> M[Dark Discord Theme]
     end
@@ -156,14 +166,13 @@ FRONTEND_URL=http://localhost:3000
 - **CORS** ограничение origin источников
 - **Password хеширование** с bcrypt (12 раундов)
 - **Валидация данных** для всех входных параметров
-- **Rate limiting** готов для установки
+- **Rate limiting** полностью настроен
 - **HTTPS** требуется в продакшене
 - **API документация** через Swagger (авторизованная)
 
 ### Требования для продакшена:
 - Установка TURN сервера для WebRTC
 - HTTPS сертификаты (Let's Encrypt)
-- Rate limiting middleware (express-rate-limit)
 - Redis для session storage
 - Audit logging для безопасности
 
@@ -187,9 +196,8 @@ FRONTEND_URL=http://localhost:3000
 
 ## Дальнейшее развитие
 
-Подробный план развития см. в [TODO.md](TODO.md).
+Голосовые каналы WebRTC полностью реализованы. Подробный план развития см. в [TODO.md](TODO.md).
 Основные направления:
-- WebRTC для голосового общения
 - Unit/Integration тесты
 - TypeScript миграция
 - Redis для масштабирования

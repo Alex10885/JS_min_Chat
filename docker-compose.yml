@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  coturn:
+    image: coturn/coturn:latest
+    ports:
+      - "3478:3478"
+      - "5349:5349"
+    environment:
+      - TURN_SERVER_CONFIG=/etc/coturn/turnserver.conf
+    volumes:
+      - ./coturn.conf:/etc/coturn/turnserver.conf:ro
+    networks:
+      - chat-network
+
+networks:
+  chat-network:
+    driver: bridge
