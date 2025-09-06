@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import ErrorBoundary from './ErrorBoundary';
 import useSocket from './useSocket';
+import useWebRTC from './useWebRTC';
 import axios from 'axios';
 import { Container, Paper, TextField, Button, List, ListItem, Typography, Box, ListItemText, Avatar, ThemeProvider, createTheme, CssBaseline, Badge, Drawer, IconButton, useMediaQuery } from '@mui/material';
 import { SnackbarProvider, useSnackbar } from 'notistack';
@@ -67,13 +68,21 @@ function App() {
   const [expanded, setExpanded] = useState([]);
   const [selected, setSelected] = useState('general');
   const [newChannelName, setNewChannelName] = useState('');
-  const [speaking, setSpeaking] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [voiceChannel, setVoiceChannel] = useState(null);
   const [inVoice, setInVoice] = useState(false);
 
   // Socket connection hook
   const { socket, isConnected, connectionStatus } = useSocket(token, { nickname, role });
+
+  // WebRTC voice hook
+  const {
+    isConnected: voiceConnected,
+    isMuted,
+    participants: voiceParticipants,
+    localAudioRef,
+    toggleMute
+  } = useWebRTC(socket, voiceChannel);
 
   const validSelectedItems = useMemo(() => {
     const validChannels = channels.filter(c => c.id);
@@ -205,7 +214,6 @@ function App() {
     if (channel && channel.type === 'voice') {
       setVoiceChannel(channelId);
       setInVoice(true);
-      // Here, implement voice joining logic, e.g., WebRTC
       console.log(`Joined voice channel: ${channel.name}`);
     }
   };
@@ -214,6 +222,7 @@ function App() {
     setInVoice(false);
     setVoiceChannel(null);
   };
+
 
   return (
     <ThemeProvider theme={darkTheme}>
@@ -402,13 +411,10 @@ function App() {
                 <Button
                   size="small"
                   color="error"
-                  onClick={() => {
-                    setSpeaking(!speaking);
-                    socket.emit('speaking', { speaking: !speaking });
-                  }}
+                  onClick={toggleMute}
                   style={{ marginTop: 5, marginLeft: 5 }}
                 >
-                  {speaking ? <MicOffIcon /> : <MicIcon />}
+                  {isMuted ? <MicOffIcon /> : <MicIcon />}
                 </Button>
               </Box>
             )}
@@ -521,6 +527,21 @@ function App() {
           </Paper>
         </Grid>
       </Grid>
+
+      {/* Hidden audio elements for WebRTC */}
+      <audio ref={localAudioRef} style={{ display: 'none' }} />
+      {voiceParticipants.map(participant => (
+        <audio
+          key={participant.socketId}
+          ref={el => {
+            if (el && participant.stream) {
+              el.srcObject = participant.stream;
+            }
+          }}
+          autoPlay
+          style={{ display: 'none' }}
+        />
+      ))}
     </Container>
     </ThemeProvider>
   );

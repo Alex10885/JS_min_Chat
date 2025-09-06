@@ -5,6 +5,9 @@ const socketIo = require('socket.io');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const winston = require('winston');
+const swaggerJsdoc = require('swagger-jsdoc');
+const swaggerUi = require('swagger-ui-express');
+const helmet = require('helmet');
 const { body, validationResult } = require('express-validator');
 const { connectDB, closeDB } = require('./db/connection');
 
@@ -45,7 +48,296 @@ const io = socketIo(server, {
 app.use(cors());
 app.use(express.json());
 
+// Helmet security headers
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        connectSrc: ["'self'"]
+      }
+    },
+    crossOriginEmbedderPolicy: false
+  })
+);
+
+// Swagger configuration
+const swaggerOptions = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'Chat-JS API',
+      version: '1.0.0',
+      description: 'REST API for Chat-JS application with real-time messaging and voice channels',
+      contact: {
+        name: 'Chat-JS Support'
+      }
+    },
+    servers: [
+      {
+        url: 'http://localhost:3001',
+        description: 'Development server'
+      }
+    ],
+    components: {
+      schemas: {
+        User: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              description: 'User unique identifier'
+            },
+            nickname: {
+              type: 'string',
+              description: 'User nickname',
+              minLength: 3,
+              maxLength: 50
+            },
+            email: {
+              type: 'string',
+              format: 'email',
+              description: 'User email address'
+            },
+            role: {
+              type: 'string',
+              enum: ['admin', 'member'],
+              default: 'member',
+              description: 'User role'
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+              description: 'User creation timestamp'
+            },
+            lastActive: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Last activity timestamp'
+            },
+            status: {
+              type: 'string',
+              enum: ['online', 'offline'],
+              description: 'User online status'
+            }
+          },
+          required: ['nickname', 'email', 'password', 'role']
+        },
+        Channel: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              description: 'Channel unique identifier (auto-generated from name)'
+            },
+            name: {
+              type: 'string',
+              description: 'Channel display name',
+              minLength: 1,
+              maxLength: 100
+            },
+            type: {
+              type: 'string',
+              enum: ['text', 'voice'],
+              description: 'Channel type'
+            },
+            description: {
+              type: 'string',
+              description: 'Channel description',
+              maxLength: 500
+            },
+            createdBy: {
+              type: 'string',
+              description: 'Creator nickname'
+            },
+            position: {
+              type: 'number',
+              default: 0,
+              description: 'Channel display position'
+            }
+          },
+          required: ['id', 'name', 'type', 'createdBy']
+        },
+        RegisterRequest: {
+          type: 'object',
+          required: ['nickname', 'email', 'password'],
+          properties: {
+            nickname: {
+              type: 'string',
+              minLength: 3,
+              maxLength: 50,
+              description: 'Unique username'
+            },
+            email: {
+              type: 'string',
+              format: 'email',
+              description: 'Valid email address'
+            },
+            password: {
+              type: 'string',
+              minLength: 6,
+              description: 'User password'
+            }
+          }
+        },
+        LoginRequest: {
+          type: 'object',
+          required: ['identifier', 'password'],
+          properties: {
+            identifier: {
+              type: 'string',
+              description: 'Username or email'
+            },
+            password: {
+              type: 'string',
+              description: 'User password'
+            }
+          }
+        },
+        AuthResponse: {
+          type: 'object',
+          properties: {
+            token: {
+              type: 'string',
+              description: 'JWT access token'
+            },
+            user: {
+              $ref: '#/components/schemas/User'
+            }
+          }
+        },
+        ChannelRequest: {
+          type: 'object',
+          required: ['name', 'type'],
+          properties: {
+            name: {
+              type: 'string',
+              minLength: 1,
+              maxLength: 100,
+              description: 'Channel display name'
+            },
+            type: {
+              type: 'string',
+              enum: ['text', 'voice'],
+              description: 'Channel type'
+            },
+            description: {
+              type: 'string',
+              maxLength: 500,
+              description: 'Optional channel description'
+            }
+          }
+        },
+        ErrorResponse: {
+          type: 'object',
+          properties: {
+            error: {
+              type: 'string',
+              description: 'Error message'
+            },
+            errors: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  msg: { type: 'string' },
+                  param: { type: 'string' },
+                  location: { type: 'string' }
+                }
+              },
+              description: 'Validation errors array'
+            }
+          }
+        }
+      },
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT'
+        }
+      }
+    },
+    security: [
+      {
+        bearerAuth: []
+      }
+    ]
+  },
+  apis: ['./server.js'] // Path to the API routes
+};
+
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
+
+// Swagger UI with CSP disabled for this route
+app.use('/api-docs', (req, res, next) => {
+  // Disable CSP for Swagger UI
+  res.removeHeader('Content-Security-Policy');
+  next();
+}, swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// Swagger JSON endpoint
+app.get('/api-docs.json', (req, res) => {
+  res.removeHeader('Content-Security-Policy');
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
 // Authentication endpoints
+/**
+ * @swagger
+ * /register:
+ *   post:
+ *     tags:
+ *       - Authentication
+ *     summary: Register a new user
+ *     description: Creates a new user account with nickname, email, and password
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/RegisterRequest'
+ *           example:
+ *             nickname: "john_doe"
+ *             email: "john@example.com"
+ *             password: "securePass123"
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthResponse'
+ *             example:
+ *               token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *               user:
+ *                 id: "507f1f77bcf86cd799439011"
+ *                 nickname: "john_doe"
+ *                 email: "john@example.com"
+ *                 role: "member"
+ *       400:
+ *         description: Validation error or user already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               validation:
+ *                 value:
+ *                   errors: [
+ *                     { msg: "Nickname must be at least 3 chars long", param: "nickname" }
+ *                   ]
+ *               duplicate:
+ *                 value:
+ *                   error: "Nickname already taken"
+ *       500:
+ *         description: Server error
+ */
 app.post('/register', [
   body('nickname').isLength({ min: 3, max: 50 }).trim().escape(),
   body('email').isEmail().normalizeEmail(),
@@ -111,6 +403,56 @@ app.post('/register', [
   }
 });
 
+/**
+ * @swagger
+ * /login:
+ *   post:
+ *     tags:
+ *       - Authentication
+ *     summary: Login user
+ *     description: Authenticates user with nickname or email and returns JWT token
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LoginRequest'
+ *           example:
+ *             identifier: "john_doe"
+ *             password: "securePass123"
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthResponse'
+ *             example:
+ *               token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *               user:
+ *                 id: "507f1f77bcf86cd799439011"
+ *                 nickname: "john_doe"
+ *                 email: "john@example.com"
+ *                 role: "member"
+ *       401:
+ *         description: Invalid credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               error: "Invalid credentials"
+ *       400:
+ *         description: Missing required fields
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               error: "Identifier and password required"
+ *       500:
+ *         description: Server error
+ */
 app.post('/login', async (req, res) => {
   try {
     const { identifier, password } = req.body;
@@ -155,6 +497,43 @@ app.post('/login', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /channels:
+ *   get:
+ *     tags:
+ *       - Channels
+ *     summary: Get all channels
+ *     description: Retrieves a list of all available channels (text and voice)
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of channels retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Channel'
+ *             example:
+ *               - id: "general"
+ *                 name: "General"
+ *                 type: "text"
+ *                 createdBy: "system"
+ *                 position: 0
+ *               - id: "voice-chat"
+ *                 name: "Voice Chat"
+ *                 type: "voice"
+ *                 createdBy: "system"
+ *                 position: 1
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 app.get('/channels', async (req, res) => {
   try {
     const channels = await Channel.find().sort({ position: 1, createdAt: 1 });
@@ -165,6 +544,58 @@ app.get('/channels', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /channels:
+ *   post:
+ *     tags:
+ *       - Channels
+ *     summary: Create a new channel
+ *     description: Creates a new text or voice channel
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ChannelRequest'
+ *           example:
+ *             name: "Random Chat"
+ *             type: "text"
+ *             description: "General discussion channel"
+ *     responses:
+ *       201:
+ *         description: Channel created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Channel'
+ *             example:
+ *               id: "random_chat"
+ *               name: "Random Chat"
+ *               type: "text"
+ *               description: "General discussion channel"
+ *               createdBy: "john_doe"
+ *               position: 0
+ *       400:
+ *         description: Validation error or channel already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               validation:
+ *                 value:
+ *                   errors: [
+ *                     { msg: "Channel name is required", param: "name" }
+ *                   ]
+ *               duplicate:
+ *                 value:
+ *                   error: "Channel already exists"
+ *       500:
+ *         description: Server error
+ */
 app.post('/channels', [
   body('name').isLength({ min: 1, max: 100 }).trim().escape(),
   body('type').isIn(['text', 'voice'])
@@ -205,6 +636,9 @@ app.post('/channels', [
 
 // Global users map for socket management {socketId: {userId, nickname, room}}
 let onlineUsers = new Map();
+
+// Voice channels management
+const voiceChannels = new Map(); // channelId -> { socketId: { peerConnection, stream } }
 
 io.use(async (socket, next) => {
   const token = socket.handshake.auth.token;
@@ -455,11 +889,116 @@ io.on('connection', async (socket) => {
     socket.to(socket.room).emit('speaking', { nickname: socket.nickname, speaking: data.speaking });
   });
 
+  // Voice channel events
+  socket.on('join_voice_channel', async (data) => {
+    const { channelId } = data;
+    if (!channelId) return;
+
+    try {
+      // Verify channel exists and is voice
+      const channel = await Channel.findOne({ id: channelId, type: 'voice' });
+      if (!channel) {
+        socket.emit('voice_error', { message: 'Voice channel not found' });
+        return;
+      }
+
+      // Initialize voice channel if not exists
+      if (!voiceChannels.has(channelId)) {
+        voiceChannels.set(channelId, new Map());
+      }
+
+      const channelPeers = voiceChannels.get(channelId);
+
+      // Notify others in the channel
+      socket.to(channelId).emit('user_joined_voice', { nickname: socket.nickname, socketId: socket.id });
+
+      // Add socket to voice channel room
+      socket.join(channelId);
+      channelPeers.set(socket.id, { peerConnection: null, stream: null });
+
+      // Update user's voice channel status
+      socket.voiceChannel = channelId;
+
+      logger.info(`User ${socket.nickname} joined voice channel ${channelId}`);
+      socket.emit('voice_joined', { channelId });
+
+    } catch (error) {
+      logger.error('Error joining voice channel:', error);
+      socket.emit('voice_error', { message: 'Failed to join voice channel' });
+    }
+  });
+
+  socket.on('leave_voice_channel', () => {
+    if (!socket.voiceChannel) return;
+
+    const channelId = socket.voiceChannel;
+    const channelPeers = voiceChannels.get(channelId);
+
+    if (channelPeers) {
+      channelPeers.delete(socket.id);
+      if (channelPeers.size === 0) {
+        voiceChannels.delete(channelId);
+      }
+    }
+
+    // Notify others
+    socket.to(channelId).emit('user_left_voice', { nickname: socket.nickname, socketId: socket.id });
+
+    socket.leave(channelId);
+    socket.voiceChannel = null;
+
+    logger.info(`User ${socket.nickname} left voice channel ${channelId}`);
+    socket.emit('voice_left');
+  });
+
+  socket.on('voice_offer', (data) => {
+    const { offer, targetSocketId } = data;
+    socket.to(targetSocketId).emit('voice_offer', {
+      offer,
+      from: socket.id,
+      fromNickname: socket.nickname
+    });
+  });
+
+  socket.on('voice_answer', (data) => {
+    const { answer, targetSocketId } = data;
+    socket.to(targetSocketId).emit('voice_answer', {
+      answer,
+      from: socket.id,
+      fromNickname: socket.nickname
+    });
+  });
+
+  socket.on('ice_candidate', (data) => {
+    const { candidate, targetSocketId } = data;
+    socket.to(targetSocketId).emit('ice_candidate', {
+      candidate,
+      from: socket.id,
+      fromNickname: socket.nickname
+    });
+  });
+
   // Disconnect
   socket.on('disconnect', async () => {
     logger.info(`User ${socket.nickname} disconnected`);
 
     try {
+      // Leave voice channel if in one
+      if (socket.voiceChannel) {
+        const channelId = socket.voiceChannel;
+        const channelPeers = voiceChannels.get(channelId);
+
+        if (channelPeers) {
+          channelPeers.delete(socket.id);
+          if (channelPeers.size === 0) {
+            voiceChannels.delete(channelId);
+          }
+        }
+
+        // Notify others
+        socket.to(channelId).emit('user_left_voice', { nickname: socket.nickname, socketId: socket.id });
+      }
+
       if (socket.room) {
         socket.leave(socket.room);
 
