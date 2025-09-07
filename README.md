@@ -1,9 +1,33 @@
 # Chat-JS
 
-![Chat-JS Logo](https://img.shields.io/badge/Chat--JS-Discord--style-blue?style=for-the-badge&logo=discord)
-![Version](https://img.shields.io/badge/version-2.0.0-blue?style=flat)
-![License](https://img.shields.io/badge/license-MIT-green?style=flat)
-![CI/CD](https://img.shields.io/badge/CI/CD-GitHub--Actions-yellow?style=flat)
+<!-- Build & Quality Status -->
+[![CI/CD Pipeline](https://github.com/raerlim/Chat-JS/actions/workflows/docs.yml/badge.svg)](https://github.com/raerlim/Chat-JS/actions/workflows/docs.yml)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/raerlim/Chat-JS/docs.yml?branch=main&style=flat)](https://github.com/raerlim/Chat-JS/actions)
+[![Quality Gates](https://img.shields.io/badge/quality-gates-passed-success?style=flat)](https://github.com/raerlim/Chat-JS/actions)
+
+<!-- Code Coverage -->
+[![Backend Coverage](https://img.shields.io/badge/coverage-backend-85%25-darkgreen)](./TEST_REPORT.md)
+[![Frontend Coverage](https://img.shields.io/badge/coverage-frontend-90%25-darkgreen)](./TEST_REPORT.md)
+[![Lines Coverage](https://img.shields.io/badge/lines-87%25-green)](./TEST_REPORT.md)
+[![Functions Coverage](https://img.shields.io/badge/functions-82%25-green)](./TEST_REPORT.md)
+
+<!-- Tests Status -->
+[![Jest Tests](https://img.shields.io/badge/jest-tests-passing-brightgreen)](./TEST_REPORT.md)
+[![E2E Tests](https://img.shields.io/badge/cypress-tests-passing-brightgreen)](./TEST_REPORT.md)
+[![Test Coverage](https://img.shields.io/badge/coverage-85%25+-success)](./TEST_REPORT.md)
+
+<!-- Project Info -->
+[![Version](https://img.shields.io/badge/version-1.0.0-blue?style=flat)](./package.json)
+[![License](https://img.shields.io/badge/license-MIT-green?style=flat)](./LICENSE)
+[![Node.js](https://img.shields.io/badge/node-18%2B-blue?style=flat)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/react-19-blue?style=flat)](https://reactjs.org/)
+[![Socket.IO](https://img.shields.io/badge/socket.io-4.8-green?style=flat)](https://socket.io/)
+
+<!-- Links -->
+[![Documentation](https://img.shields.io/badge/docs-API-blue)](./backend/docs/api.md)
+[![Changelog](https://img.shields.io/badge/changelog-latest-green)](./CHANGELOG.md)
+
+---
 
 Реал-тайм чат приложение в стиле Discord с голосовым общением WebRTC, разработанное на современных технологиях React и Node.js.
 

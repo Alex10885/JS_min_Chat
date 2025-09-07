@@ -1,0 +1,209 @@
+#!/bin/bash
+
+# Pre-commit hook для Chat-JS проекта
+# Выполняет проверки качества кода и частичное обновление документации
+
+echo "🔍 Pre-commit проверки..."
+
+# Цвета для вывода
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Флаги для отслеживания статуса
+FAILED_LINT=0
+FAILED_SYNTAX=0
+FAILED_DOCS=0
+
+# Репозиторий конфигурации
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
+# Функция для вывода ошибок
+error() {
+    echo -e "${RED}❌ $1${NC}"
+}
+
+# Функция для вывода предупреждений
+warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+# Функция для вывода успехов
+success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+# 1. Проверка Node.js версии
+echo "📦 Проверка Node.js..."
+NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
+if [ "$NODE_VERSION" -lt 16 ]; then
+    error "Node.js version $NODE_VERSION слишком старая. Требуется 16+"
+    exit 1
+fi
+success "Node.js version: $(node --version)"
+
+# 2. Установка зависимостей если package-lock.json изменился
+if git diff --cached --name-only | grep -E "(package-lock\.json|yarn\.lock)" > /dev/null; then
+    echo "🔄 Установка зависимостей..."
+
+    if [ -d "$REPO_ROOT/frontend" ]; then
+        cd "$REPO_ROOT/frontend"
+        npm install --silent
+        if [ $? -ne 0 ]; then
+            error "Не удалось установить frontend зависимости"
+            exit 1
+        fi
+    fi
+
+    if [ -d "$REPO_ROOT/backend" ]; then
+        cd "$REPO_ROOT/backend"
+        npm install --silent
+        if [ $? -ne 0 ]; then
+            error "Не удалось установить backend зависимости"
+            exit 1
+        fi
+    fi
+
+    success "Зависимости установлены"
+fi
+
+cd "$REPO_ROOT"
+
+# 3. ESLint проверки (quick mode)
+echo "🔍 Быстрая проверка ESLint..."
+
+if [ -d "$REPO_ROOT/frontend" ]; then
+    cd "$REPO_ROOT/frontend"
+    if [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ] || [ -f "eslint.config.js" ]; then
+        npx eslint --quiet src/ --max-warnings=0
+        if [ $? -ne 0 ]; then
+            error "ESLint проверил ошибки во frontend коде"
+            FAILED_LINT=1
+        else
+            success "Frontend ESLint проверки пройдены"
+        fi
+    fi
+fi
+
+cd "$REPO_ROOT"
+
+if [ -d "$REPO_ROOT/backend" ]; then
+    cd "$REPO_ROOT/backend"
+    if [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ] || [ -f "eslint.config.js" ]; then
+        npx eslint --quiet . --max-warnings=0
+        if [ $? -ne 0 ]; then
+            error "ESLint проверил ошибки в backend коде"
+            FAILED_LINT=1
+        else
+            success "Backend ESLint проверки пройдены"
+        fi
+    fi
+fi
+
+# 4. Проверка синтаксиса JavaScript/Node.js
+echo "🔍 Проверка синтаксиса JS..."
+cd "$REPO_ROOT"
+
+# Проверка измененных JS файлов
+STAGED_JS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|jsx|ts|tsx)$' | grep -v node_modules)
+
+if [ -n "$STAGED_JS_FILES" ]; then
+    echo "$STAGED_JS_FILES" | while read -r file; do
+        if [ -f "$file" ]; then
+            case "$file" in
+                *.js|*.jsx|*.ts|*.tsx)
+                    node -c "$file" 2>/dev/null
+                    if [ $? -ne 0 ]; then
+                        error "Синтаксическая ошибка в $file"
+                        FAILED_SYNTAX=1
+                    fi
+                    ;;
+            esac
+        fi
+    done
+
+    if [ $FAILED_SYNTAX -eq 0 ]; then
+        success "Проверка синтаксиса пройдена"
+    fi
+else
+    success "Нет измененных JS файлов для проверки"
+fi
+
+# 5. Обновление документации (быстрый режим)
+echo "📝 Быстрое обновление документов..."
+cd "$REPO_ROOT"
+
+# Проверка прав на исполнение скрипта
+if [ ! -x "scripts/generate-docs.js" ]; then
+    chmod +x scripts/generate-docs.js
+    success "Сделали generate-docs.js исполняемым"
+fi
+
+# Быстрое обновление README если он изменился
+if git diff --cached --name-only | grep -E "(README\.md|CHANGELOG\.md)" > /dev/null; then
+    warning "Изменены файлы README/CHANGELOG - запустите npm run docs после коммита"
+fi
+
+# Обновление API документации если изменились routes/models
+if git diff --cached --name-only | grep -E "(backend/server\.js|backend/models/|backend/routes/)" > /dev/null; then
+    warning "Изменены backend файлы - API docs будут обновлены автоматически"
+fi
+
+# 6. Проверка формата commit сообщения (conventional commits)
+echo "📝 Проверка формата commit сообщения..."
+COMMIT_MSG_FILE="$1"
+
+if [ -n "$COMMIT_MSG_FILE" ] && [ -f "$COMMIT_MSG_FILE" ]; then
+    COMMIT_MSG=$(head -n1 "$COMMIT_MSG_FILE")
+
+    # Проверка на conventional commit format (упрощенная)
+    if ! echo "$COMMIT_MSG" | grep -E '^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\(.+\))?: .+' > /dev/null; then
+        if ! echo "$COMMIT_MSG" | grep -E '^(Revert|Merge|BREAKING).+' > /dev/null; then
+            warning "Коммит сообщение не соответствует conventional commits формату"
+            echo "Рекомендуемый формат: type(scope): description"
+            echo "Примеры: feat(ui): add new chat interface"
+            echo "         fix(api): resolve auth token issue"
+        fi
+    else
+        success "Commit сообщение соответствует conventional commits"
+    fi
+fi
+
+# 7. Проверка конфликтов маркеров (быстрая)
+echo "🔍 Проверка конфликтов маркеров..."
+cd "$REPO_ROOT"
+
+if git diff --cached | grep -E '^(<<<<<<<|=======|>>>>>>>)' > /dev/null; then
+    error "Обнаружены конфликты маркеров в staged файлах!"
+    git diff --cached | grep -n -E '^(<<<<<<<|=======|>>>>>>>)' | head -5
+    exit 1
+else
+    success "Конфликты маркеров не найдены"
+fi
+
+# Финализация
+echo ""
+echo "📋 Результаты pre-commit проверки:"
+echo "═══════════════════════════════════════════════"
+
+if [ $FAILED_LINT -ne 0 ] || [ $FAILED_SYNTAX -ne 0 ]; then
+    error "Некоторые проверки провалились!"
+    echo ""
+    echo "💡 Исправьте ошибки и повторите git add && git commit"
+    echo "🔧 Для временного пропуска проверок выполните:"
+    echo "   git commit --no-verify"
+    echo ""
+    exit 1
+fi
+
+success "Все проверки пройдены! 🎉"
+echo ""
+echo "💡 После push будет выполнена полная валидация (тесты, coverage)"
+
+# Отображение статистики изменений
+echo ""
+echo "📊 Статистика изменений:"
+git diff --cached --stat --color | cat
+
+exit 0

@@ -1,0 +1,63 @@
+{
+  "name": "chat-js",
+  "version": "1.0.0",
+  "description": "Realtime Discord-style chat application with WebRTC voice communication",
+  "main": "index.js",
+  "scripts": {
+    "setup": "node scripts/setup-git-hooks.js",
+    "docs:generate": "node scripts/generate-docs.js",
+    "docs:coverage": "node scripts/update-coverage.js",
+    "docs:changelog": "node scripts/generate-changelog.js",
+    "docs:badges": "node scripts/update-coverage.js --generate-badges",
+    "lint": "cd backend && npm run lint && cd ../frontend && npm run lint",
+    "test": "cd backend && npm test && cd ../frontend && npm run test:coverage",
+    "test:all": "npm run test && cd frontend && npm run e2e:run",
+    "build": "cd backend && npm run build 2>/dev/null || echo 'Backend build skipped' && cd ../frontend && npm run build",
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "postinstall": "npm run setup",
+    "hooks:setup": "node scripts/setup-git-hooks.js",
+    "hooks:install": "npm run install:all && npm run hooks:setup",
+    "hooks:bypass-commit": "git commit --no-verify",
+    "hooks:bypass-push": "git push --no-verify",
+    "quality:check": "node scripts/update-coverage.js --gates && npm run lint",
+    "reporting": "npm run docs:coverage && npm run docs:changelog && npm run docs:generate",
+    "ci:full": "npm run quality:check && npm run test:all && npm run reporting && npm run build",
+    "dev:backend": "cd backend && npm start",
+    "dev:frontend": "cd frontend && npm start",
+    "dev": "npm run dev:backend & npm run dev:frontend",
+    "start": "npm run dev"
+  },
+  "keywords": [
+    "chat",
+    "realtime",
+    "websocket",
+    "webrtc",
+    "voice-chat",
+    "discord",
+    "react",
+    "nodejs",
+    "socket.io"
+  ],
+  "author": "Raer Lim",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/raerlim/Chat-JS/issues"
+  },
+  "homepage": "https://github.com/raerlim/Chat-JS#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/raerlim/Chat-JS.git"
+  },
+  "devDependencies": {
+    "jsdoc-to-markdown": "^8.0.0",
+    "madge": "^6.1.0",
+    "conventional-changelog": "^4.0.0"
+  }
+}

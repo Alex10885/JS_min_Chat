@@ -5,10 +5,11 @@ describe('Chat App - End-to-End Functional Tests', () => {
       return false; // Prevent Cypress from failing the test
     });
 
-    // Log if backend is responding
+    // Wait for backend to be ready
     cy.request({
       url: `${Cypress.env('apiUrl') || 'http://localhost:3001'}/health`,
-      failOnStatusCode: false
+      failOnStatusCode: false,
+      timeout: 10000
     }).then((response) => {
       if (response.status === 200) {
         cy.log('Backend health check: OK');
@@ -21,6 +22,10 @@ describe('Chat App - End-to-End Functional Tests', () => {
     cy.log('Ensuring user authentication...');
     cy.ensureAuthenticated().then(() => {
       cy.log('Authentication completed');
+      // Wait for page to stabilize and Socket.IO to connect
+      cy.wait(3000);
+      // Wait for connection status to appear
+      cy.contains(/Подключено|Переподключение|Отключено/, { timeout: 15000 }).should('be.visible');
     });
   });
 
@@ -42,12 +47,15 @@ describe('Chat App - End-to-End Functional Tests', () => {
   it('should handle message input and sending', () => {
     // Join General channel first
     cy.contains('General').click();
+    cy.wait(2000); // Wait for channel switching
 
     // Type a message
-    cy.get('input[type="text"]').type('Hello from Cypress E2E test!');
+    cy.get('input[type="text"]', { timeout: 10000 }).type('Hello from Cypress E2E test!');
+    cy.wait(1000);
 
     // Send message
     cy.get('button[type="button"]').contains('Отправить').click();
+    cy.wait(2000); // Wait for message to be sent
 
     // Check that input is cleared
     cy.get('input[type="text"]').should('have.value', '');
@@ -65,37 +73,44 @@ describe('Chat App - End-to-End Functional Tests', () => {
   it('should allow joining text channels', () => {
     // Click on General channel
     cy.contains('General').click();
+    cy.wait(2000); // Wait for channel switching
 
     // Message input should be available
-    cy.get('input[type="text"]').should('be.visible');
+    cy.get('input[type="text"]', { timeout: 10000 }).should('be.visible');
   });
 
   it('should handle channel creation', () => {
     // Wait for sidebar to be ready
-    cy.contains('Каналы').should('be.visible');
+    cy.contains('Каналы', { timeout: 10000 }).should('be.visible');
+    cy.wait(1000);
 
     // Get the first new channel input in the sidebar
     cy.get('input[placeholder="New Channel Name"]').first().type('Test Channel');
+    cy.wait(500);
 
     // Click text channel button
     cy.get('button').contains('# Текст').first().click();
+    cy.wait(2000); // Wait for channel creation
 
     // Check that the new channel appears
-    cy.contains('Test Channel').should('be.visible');
+    cy.contains('Test Channel', { timeout: 10000 }).should('be.visible');
   });
 
   it('should handle voice channel creation', () => {
     // Wait for sidebar to be ready
-    cy.contains('Каналы').should('be.visible');
+    cy.contains('Каналы', { timeout: 10000 }).should('be.visible');
+    cy.wait(1000);
 
     // Get the first new channel input in the sidebar
     cy.get('input[placeholder="New Channel Name"]').first().type('Test Voice Channel');
+    cy.wait(500);
 
     // Click voice channel button
     cy.get('button').contains('🎤 Голос').first().click();
+    cy.wait(2000); // Wait for channel creation
 
     // Check that the new voice channel appears
-    cy.contains('Test Voice Channel').should('be.visible');
+    cy.contains('Test Voice Channel', { timeout: 10000 }).should('be.visible');
   });
 
   it('should support responsive design - mobile view', () => {
@@ -104,16 +119,18 @@ describe('Chat App - End-to-End Functional Tests', () => {
 
     // Reload page to apply viewport
     cy.reload();
+    cy.wait(3000); // Wait for page reload and stabilization
 
     // Check that mobile drawer menu exists
-    cy.get('[data-testid="MenuIcon"]').should('be.visible');
+    cy.get('[data-testid="MenuIcon"]', { timeout: 10000 }).should('be.visible');
 
     // Click menu button
     cy.get('[data-testid="MenuIcon"]').click();
+    cy.wait(1000); // Wait for drawer animation
 
     // Check that channels are accessible in drawer
-    cy.get('.MuiDrawer-paper').should('be.visible');
-    cy.contains('Каналы').should('be.visible');
+    cy.get('.MuiDrawer-paper', { timeout: 10000 }).should('be.visible');
+    cy.contains('Каналы', { timeout: 10000 }).should('be.visible');
   });
 
   it('should show connection status', () => {

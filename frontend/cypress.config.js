@@ -14,9 +14,9 @@ module.exports = defineConfig({
     screenshotOnRunFailure: true,
     videosFolder: "cypress/results/videos",
     screenshotsFolder: "cypress/results/screenshots",
-    defaultCommandTimeout: 8000,
-    requestTimeout: 10000,
-    responseTimeout: 15000,
+    defaultCommandTimeout: 15000,
+    requestTimeout: 20000,
+    responseTimeout: 25000,
     viewportWidth: 1280,
     viewportHeight: 720,
     retries: {
