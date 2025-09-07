@@ -696,7 +696,7 @@ describe('Channel Model', () => {
       expect(channel.position).toBe(Number.MAX_SAFE_INTEGER);
     });
 
-    it('should handle concurrent cbut react creation', async () => {
+    it('should handle concurrent creation', async () => {
       const attempts = [];
       for (let i = 0; i < 3; i++) {
         attempts.push(
@@ -734,5 +734,380 @@ describe('Channel Model', () => {
        expect(channel.createdBy).toBe('testuser'); // CreatedBy doesn't get trimmed in this case
        expect(channel.description).toBe('  Spaced description  '); // Description field doesn't trim
      });
+
+    it('should validate empty channel names', async () => {
+      let error;
+      const channel = new Channel({
+        id: 'empty-name-test',
+        name: '',
+        type: 'text',
+        createdBy: 'testuser'
+      });
+
+      try {
+        await channel.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.name).toBeDefined();
+    });
+
+    it('should validate whitespace-only channel names', async () => {
+      let error;
+      const channel = new Channel({
+        id: 'whitespace-name-test',
+        name: '   ',
+        type: 'text',
+        createdBy: 'testuser'
+      });
+
+      try {
+        await channel.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.name).toBeDefined();
+    });
+
+    it('should handle channel names with special characters', async () => {
+      const specialNames = [
+        'Channel@Domain',
+        'Channel#Hash',
+        'Channel$Special',
+        'Channel%Percent',
+        'Channel&And'
+      ];
+
+      for (const name of specialNames) {
+        const channel = new Channel({
+          id: `special-name-${name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}`,
+          name: name,
+          type: 'text',
+          createdBy: 'testuser'
+        });
+
+        const saved = await channel.save();
+        expect(saved.name).toBe(name);
+      }
+    });
+
+    it('should handle extremely long channel names', async () => {
+      const longName = 'a'.repeat(150); // Over 100 character limit
+      let error;
+      const channel = new Channel({
+        id: 'long-name-test',
+        name: longName,
+        type: 'text',
+        createdBy: 'testuser'
+      });
+
+      try {
+        await channel.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.name).toBeDefined();
+    });
+
+    it('should validate channel names exactly at limit', async () => {
+      const exactLimitName = 'a'.repeat(100); // Exactly at limit
+      const channel = new Channel({
+        id: 'exact-limit-test',
+        name: exactLimitName,
+        type: 'text',
+        createdBy: 'testuser'
+      });
+
+      const saved = await channel.save();
+      expect(saved.name.length).toBe(100);
+    });
+
+    it('should handle empty createdBy field', async () => {
+      let error;
+      const channel = new Channel({
+        id: 'empty-creator-test',
+        name: 'Empty Creator',
+        type: 'text',
+        createdBy: ''
+      });
+
+      try {
+        await channel.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.createdBy).toBeDefined();
+    });
+
+    it('should handle extremely long createdBy values', async () => {
+      const longCreator = 'a'.repeat(300);
+      const channel = new Channel({
+        id: 'long-creator-test',
+        name: 'Long Creator Test',
+        type: 'text',
+        createdBy: longCreator
+      });
+
+      const saved = await channel.save();
+      expect(saved.createdBy.length).toBe(300);
+    });
+
+    it('should validate empty channel IDs', async () => {
+      let error;
+      const channel = new Channel({
+        id: '',
+        name: 'Empty ID Test',
+        type: 'text',
+        createdBy: 'testuser'
+      });
+
+      try {
+        await channel.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.id).toBeDefined();
+    });
+
+    it('should handle negative position values', async () => {
+      const channel = new Channel({
+        id: 'negative-pos-test',
+        name: 'Negative Position Test',
+        type: 'text',
+        createdBy: 'testuser',
+        position: -5
+      });
+
+      const saved = await channel.save();
+      expect(saved.position).toBe(-5);
+    });
+
+    it('should handle very large negative positions', async () => {
+      const channel = new Channel({
+        id: 'large-negative-pos-test',
+        name: 'Large Negative Position Test',
+        type: 'text',
+        createdBy: 'testuser',
+        position: -Number.MAX_SAFE_INTEGER
+      });
+
+      const saved = await channel.save();
+      expect(saved.position).toBe(-Number.MAX_SAFE_INTEGER);
+    });
+
+    it('should handle zero position', async () => {
+      const channel = new Channel({
+        id: 'zero-pos-test',
+        name: 'Zero Position Test',
+        type: 'text',
+        createdBy: 'testuser',
+        position: 0
+      });
+
+      const saved = await channel.save();
+      expect(saved.position).toBe(0);
+    });
+
+    it('should validate all permission combinations', async () => {
+      const permissionScenarios = [
+        { read: 'everyone', write: 'everyone', description: 'Full public access' },
+        { read: 'everyone', write: 'admin', description: 'Read for everyone, write for admin' },
+        { read: 'admin', write: 'admin', description: 'Admin only access' },
+        { read: 'admin', write: 'admin', description: 'Admin only - duplicate scenario' }
+      ];
+
+      for (let i = 0; i < permissionScenarios.length; i++) {
+        const scenario = permissionScenarios[i];
+        const channel = new Channel({
+          id: `perms-test-${i}`,
+          name: `${scenario.description} Channel`,
+          type: 'text',
+          createdBy: 'admin',
+          permissions: {
+            read: scenario.read,
+            write: scenario.write
+          }
+        });
+
+        const saved = await channel.save();
+        expect(saved.permissions.read).toBe(scenario.read);
+        expect(saved.permissions.write).toBe(scenario.write);
+      }
+    });
+
+    it('should validate invalid permission combinations', async () => {
+      let error;
+      const channel = new Channel({
+        id: 'invalid-perms-test',
+        name: 'Invalid Permissions',
+        type: 'text',
+        createdBy: 'testuser',
+        permissions: {
+          read: 'invalid_perm',
+          write: 'another_invalid'
+        }
+      });
+
+      try {
+        await channel.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors['permissions.read']).toBeDefined();
+      expect(error.errors['permissions.write']).toBeDefined();
+    });
+
+    it('should handle channel locked states', async () => {
+      const channel = new Channel({
+        id: 'locked-state-test',
+        name: 'Locked State Test',
+        type: 'text',
+        createdBy: 'admin',
+        locked: true
+      });
+
+      const saved = await channel.save();
+      expect(saved.locked).toBe(true);
+
+      // Update locked state
+      saved.locked = false;
+      await saved.save();
+      expect(saved.locked).toBe(false);
+
+      // Update back to locked
+      saved.locked = true;
+      await saved.save();
+      expect(saved.locked).toBe(true);
+    });
+
+    it('should handle descriptions with special characters', async () => {
+      const specialDescriptions = [
+        'Description with @ mention',
+        'Description with # hashtag',
+        'Description with $ symbol',
+        'Multi-line\nDescription',
+        'Unicode: 🚀✨🌟'
+      ];
+
+      for (const desc of specialDescriptions) {
+        const channel = new Channel({
+          id: `desc-special-${desc.substring(0, 10).replace(/[^a-zA-Z0-9]/g, '')}`,
+          name: 'Special Description Test',
+          type: 'text',
+          createdBy: 'testuser',
+          description: desc
+        });
+
+        const saved = await channel.save();
+        expect(saved.description).toBe(desc);
+      }
+    });
+
+    it('should handle extremely long descriptions exactly at limit', async () => {
+      const exactLimitDesc = 'a'.repeat(500); // Exactly at limit
+      const channel = new Channel({
+        id: 'desc-exact-limit-test',
+        name: 'Description Limit Test',
+        type: 'text',
+        createdBy: 'testuser',
+        description: exactLimitDesc
+      });
+
+      const saved = await channel.save();
+      expect(saved.description.length).toBe(500);
+    });
+
+    it('should reject descriptions over limit', async () => {
+      const tooLongDesc = 'a'.repeat(501); // Over limit
+      let error;
+      const channel = new Channel({
+        id: 'desc-over-limit-test',
+        name: 'Description Over Limit',
+        type: 'text',
+        createdBy: 'testuser',
+        description: tooLongDesc
+      });
+
+      try {
+        await channel.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.description).toBeDefined();
+    });
+
+    it('should handle mixed case in IDs and names', async () => {
+      const mixedCaseId = 'MiXeD_CaSe_ID';
+      const mixedCaseName = 'MiXeD CaSe NaMe';
+
+      const channel = new Channel({
+        id: mixedCaseId,
+        name: mixedCaseName,
+        type: 'text',
+        createdBy: 'tEsTuSeR' // Mixed case in createdBy too
+      });
+
+      const saved = await channel.save();
+      expect(saved.id).toBe(mixedCaseId);
+      expect(saved.name).toBe(mixedCaseName);
+      expect(saved.createdBy).toBe('tEsTuSeR');
+    });
+
+    it('should handle Unicode characters in all fields', async () => {
+      const unicodeChannel = new Channel({
+        id: 'unicode-тест-测试',
+        name: 'Юникод Канал 测试',
+        type: 'text',
+        createdBy: 'тест用戶',
+        description: 'Привет мир! 你好世界! 🌍'
+      });
+
+      const saved = await channel.save();
+      expect(saved.id).toBe('unicode-тест-测试');
+      expect(saved.name).toBe('Юникод Канал 测试');
+      expect(saved.createdBy).toBe('тест用戶');
+      expect(saved.description).toBe('Привет мир! 你好世界! 🌍');
+    });
+
+    it('should validate null parent references', async () => {
+      const channel = new Channel({
+        id: 'null-parent-test',
+        name: 'Null Parent Test',
+        type: 'text',
+        createdBy: 'testuser',
+        parent: null
+      });
+
+      const saved = await channel.save();
+      expect(saved.parent).toBeNull();
+    });
+
+    it('should handle invalid parent ObjectId strings', async () => {
+      const channel = new Channel({
+        id: 'invalid-parent-test',
+        name: 'Invalid Parent Test',
+        type: 'text',
+        createdBy: 'testuser',
+        parent: 'invalid-object-id-string'
+      });
+
+      const saved = await channel.save();
+      // Mongoose may store invalid ObjectId as string or validation might happen at population
+      expect(saved.parent).toBe('invalid-object-id-string');
+    });
   });
 });

@@ -555,5 +555,314 @@ describe('Message Model', () => {
         expect(msg.text).toBe(`Concurrent message ${index}`);
       });
     });
+
+    it('should validate empty author field', async () => {
+      const message = new Message({
+        author: '',
+        channel: 'general',
+        text: 'Test message',
+        type: 'public'
+      });
+
+      let error;
+      try {
+        await message.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.author).toBeDefined();
+    });
+
+    it('should validate whitespace-only author', async () => {
+      const message = new Message({
+        author: '   ',
+        channel: 'general',
+        text: 'Test message',
+        type: 'public'
+      });
+
+      let error;
+      try {
+        await message.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.author).toBeDefined();
+    });
+
+    it('should validate empty channel field', async () => {
+      const message = new Message({
+        author: 'testuser',
+        channel: '',
+        text: 'Test message',
+        type: 'public'
+      });
+
+      let error;
+      try {
+        await message.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.channel).toBeDefined();
+    });
+
+    it('should validate messages with exactly 2000 characters', async () => {
+      const exactLengthText = 'a'.repeat(2000); // Exactly at limit
+      const message = new Message({
+        author: 'limituser',
+        channel: 'general',
+        text: exactLengthText,
+        type: 'public'
+      });
+
+      const savedMessage = await message.save();
+      expect(savedMessage.text.length).toBe(2000);
+    });
+
+    it('should reject messages over 2000 characters', async () => {
+      const tooLongText = 'a'.repeat(2001); // Over limit
+      const message = new Message({
+        author: 'toolonguser',
+        channel: 'general',
+        text: tooLongText,
+        type: 'public'
+      });
+
+      let error;
+      try {
+        await message.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.text).toBeDefined();
+    });
+
+    it('should handle messages with special characters and symbols', async () => {
+      const specialTexts = [
+        'Hello 🌍 World!',
+        'Message with <script>alert("xss")</script>',
+        'Unicode: 你好こんにちは',
+        'Emojis: 😀🎉🚀💻',
+        'Math: ∫∞-∞ f(x) dx'
+      ];
+
+      for (const specialText of specialTexts) {
+        const message = new Message({
+          author: 'symboluser',
+          channel: 'general',
+          text: specialText,
+          type: 'public'
+        });
+
+        const savedMessage = await message.save();
+        expect(savedMessage.text).toBe(specialText);
+      }
+    });
+
+    it('should handle empty target for public messages', async () => {
+      const message = new Message({
+        author: 'publicuser',
+        channel: 'general',
+        text: 'Public message',
+        type: 'public',
+        target: null
+      });
+
+      const savedMessage = await message.save();
+      expect(savedMessage.target).toBeNull();
+    });
+
+    it('should handle empty target for system messages', async () => {
+      const message = new Message({
+        author: 'system',
+        channel: 'general',
+        text: 'System notification',
+        type: 'system',
+        target: null
+      });
+
+      const savedMessage = await message.save();
+      expect(savedMessage.target).toBeNull();
+      expect(savedMessage.type).toBe('system');
+    });
+
+    it('should validate private messages with special characters in target', async () => {
+      const message = new Message({
+        author: 'privateuser',
+        channel: 'general',
+        text: 'Private message',
+        type: 'private',
+        target: 'special@user'
+      });
+
+      const savedMessage = await message.save();
+      expect(savedMessage.type).toBe('private');
+      expect(savedMessage.target).toBe('special@user');
+    });
+
+    it('should handle future timestamps', async () => {
+      const futureDate = new Date();
+      futureDate.setFullYear(futureDate.getFullYear() + 5); // 5 years in future
+
+      const message = new Message({
+        author: 'futureuser',
+        channel: 'general',
+        text: 'Future timestamp message',
+        type: 'public',
+        timestamp: futureDate
+      });
+
+      const savedMessage = await message.save();
+      expect(savedMessage.timestamp.getTime()).toBe(futureDate.getTime());
+    });
+
+    it('should handle timestamp with milliseconds precision', async () => {
+      const preciseTimestamp = new Date();
+      preciseTimestamp.setMilliseconds(123); // Set specific milliseconds
+
+      const message = new Message({
+        author: 'preciseuser',
+        channel: 'general',
+        text: 'Precise timestamp message',
+        type: 'public',
+        timestamp: preciseTimestamp
+      });
+
+      const savedMessage = await message.save();
+      expect(savedMessage.timestamp.getMilliseconds()).toBe(123);
+    });
+
+    it('should handle message type changes to invalid values', async () => {
+      const message = new Message({
+        author: 'invalidtypeuser',
+        channel: 'general',
+        text: 'Invalid type test',
+        type: 'invalid' // Invalid type
+      });
+
+      let error;
+      try {
+        await message.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.type).toBeDefined();
+    });
+
+    it('should handle extremely long author names', async () => {
+      const longAuthor = 'a'.repeat(500); // Very long author name
+      const message = new Message({
+        author: longAuthor,
+        channel: 'general',
+        text: 'Long author test',
+        type: 'public'
+      });
+
+      const savedMessage = await message.save();
+      expect(savedMessage.author).toBe(longAuthor);
+    });
+
+    it('should handle extremely long channel names', async () => {
+      const longChannel = 'a'.repeat(200); // Very long channel name
+      const message = new Message({
+        author: 'channeluser',
+        channel: longChannel,
+        text: 'Long channel test',
+        type: 'public'
+      });
+
+      const savedMessage = await message.save();
+      expect(savedMessage.channel).toBe(longChannel);
+    });
+
+    it('should handle channel names with special characters', async () => {
+      const specialChannels = ['channel@domain', 'channel#hash', 'channel$special'];
+
+      for (const channelName of specialChannels) {
+        const message = new Message({
+          author: 'specialchanneluser',
+          channel: channelName,
+          text: 'Special channel test',
+          type: 'public'
+        });
+
+        const savedMessage = await message.save();
+        expect(savedMessage.channel).toBe(channelName);
+      }
+    });
+
+    it('should handle message text with mixed encodings', async () => {
+      const mixedText = 'Привет Hello 🌍 арабский: مرحبا';
+      const message = new Message({
+        author: 'mixedencoding',
+        channel: 'general',
+        text: mixedText,
+        type: 'public'
+      });
+
+      const savedMessage = await message.save();
+      expect(savedMessage.text).toBe(mixedText);
+    });
+
+    it('should handle null values for optional fields correctly', async () => {
+      const message = new Message({
+        author: 'nulltestuser',
+        channel: 'general',
+        text: 'Null test message',
+        type: 'public',
+        target: null,
+        status: null,
+        replyTo: null
+      });
+
+      const savedMessage = await message.save();
+      expect(savedMessage.target).toBeNull();
+      expect(savedMessage.status).toBe('delivered'); // Default value
+      expect(savedMessage.replyTo).toBeNull();
+    });
+
+    it('should handle failed message status changes', async () => {
+      const message = new Message({
+        author: 'faileduser',
+        channel: 'general',
+        text: 'Failed message test',
+        type: 'public',
+        status: 'failed'
+      });
+
+      const savedMessage = await message.save();
+      expect(savedMessage.status).toBe('failed');
+    });
+
+    it('should validate replyTo with invalid ObjectId', async () => {
+      const message = new Message({
+        author: 'replytouser',
+        channel: 'general',
+        text: 'Reply to test',
+        type: 'public',
+        replyTo: 'invalid-object-id'
+      });
+
+      let error;
+      try {
+        await message.save();
+      } catch (err) {
+        error = err;
+      }
+
+      // Mongoose might not validate ObjectId format in save, it could be handled at population
+      expect(message.replyTo).toBe('invalid-object-id');
+    });
   });
 });

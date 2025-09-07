@@ -296,6 +296,270 @@ describe('User Model', () => {
     });
   });
 
+  describe('Extended Field Validation Edge Cases', () => {
+    it('should validate empty nickname', async () => {
+      const user = new User({
+        nickname: '',
+        email: 'test@example.com',
+        password: 'password123'
+      });
+
+      let error;
+      try {
+        await user.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.nickname).toBeDefined();
+    });
+
+    it('should validate whitespace-only nickname', async () => {
+      const user = new User({
+        nickname: '   ',
+        email: 'test2@example.com',
+        password: 'password123'
+      });
+
+      let error;
+      try {
+        await user.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.nickname).toBeDefined();
+    });
+
+    it('should validate nickname with special characters', async () => {
+      const specialNicknames = ['test@user', 'test#user', 'test$user', 'test%user'];
+
+      for (let i = 0; i < specialNicknames.length; i++) {
+        const nickname = specialNicknames[i];
+        const user = new User({
+          nickname: `${nickname}${i}`, // Make unique nickname
+          email: `test${nickname.replace(/[^a-zA-Z0-9]/g, '')}${i}@example.com`,
+          password: 'password123'
+        });
+
+        // Special characters should be accepted unless they violate other rules
+        const savedUser = await user.save();
+        expect(savedUser.nickname).toBe(`${nickname}${i}`);
+      }
+    });
+
+    it('should validate extremely long nickname', async () => {
+      const longNickname = 'a'.repeat(60); // Beyond 50 char limit
+      const user = new User({
+        nickname: longNickname,
+        email: 'longnick@example.com',
+        password: 'password123'
+      });
+
+      let error;
+      try {
+        await user.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.nickname).toBeDefined();
+    });
+
+    it('should validate password with exactly 5 characters', async () => {
+      const shortPassword = '12345'; // Exactly at boundary but below min
+      const user = new User({
+        nickname: 'boundarypass',
+        email: 'boundary@example.com',
+        password: shortPassword
+      });
+
+      let error;
+      try {
+        await user.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.password).toBeDefined();
+    });
+
+    it('should validate email with special characters', async () => {
+      const specialEmails = [
+        'test+tag@example.com',
+        'test.email@sub.domain.com',
+        'user_name@example.com',
+        '123@numbers.com'
+      ];
+
+      for (const email of specialEmails) {
+        const user = new User({
+          nickname: email.split('@')[0] + 'user',
+          email: email,
+          password: 'password123'
+        });
+
+        const savedUser = await user.save();
+        expect(savedUser.email).toBe(email.toLowerCase());
+      }
+    });
+
+    it('should validate empty email', async () => {
+      const user = new User({
+        nickname: 'emptyemail',
+        email: '',
+        password: 'password123'
+      });
+
+      let error;
+      try {
+        await user.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.email).toBeDefined();
+    });
+
+    it('should validate email with only whitespace', async () => {
+      const user = new User({
+        nickname: 'wsemail',
+        email: '   ',
+        password: 'password123'
+      });
+
+      let error;
+      try {
+        await user.save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.email).toBeDefined();
+    });
+
+    it('should validate inconsistent role transitions', async () => {
+      // First create admin user
+      const adminUser = await new User({
+        nickname: 'adminrole',
+        email: 'admin@example.com',
+        password: 'password123',
+        role: 'admin'
+      }).save();
+
+      expect(adminUser.role).toBe('admin');
+
+      // Test changing admin to member
+      adminUser.role = 'member';
+      await adminUser.save();
+      expect(adminUser.role).toBe('member');
+
+      // Test changing member back to admin
+      adminUser.role = 'admin';
+      await adminUser.save();
+      expect(adminUser.role).toBe('admin');
+    });
+
+    it('should validate status transitions', async () => {
+      const user = await new User({
+        nickname: 'statustransition',
+        email: 'transition@example.com',
+        password: 'password123'
+      }).save();
+
+      expect(user.status).toBe('offline');
+
+      // Test online status
+      user.status = 'online';
+      await user.save();
+      expect(user.status).toBe('online');
+
+      // Test back to offline
+      user.status = 'offline';
+      await user.save();
+      expect(user.status).toBe('offline');
+    });
+
+    it('should validate password with special characters', async () => {
+      const specialPasswords = [
+        'password@123',
+        'password#123',
+        'password$123',
+        'password%123',
+        'password&123',
+        'password*123'
+      ];
+
+      for (let i = 0; i < specialPasswords.length; i++) {
+        const user = await new User({
+          nickname: `specialpass${i}`,
+          email: `specialpass${i}@example.com`,
+          password: specialPasswords[i]
+        }).save();
+
+        const isValid = await user.comparePassword(specialPasswords[i]);
+        expect(isValid).toBe(true);
+      }
+    });
+
+    it('should validate role-specific functionality', async () => {
+      // Test admin role creation
+      const adminUser = await new User({
+        nickname: 'adminfunc',
+        email: 'adminfunc@example.com',
+        password: 'password123',
+        role: 'admin'
+      }).save();
+
+      expect(adminUser.role).toBe('admin');
+
+      // Test member role creation
+      const memberUser = await new User({
+        nickname: 'memberfunc',
+        email: 'memberfunc@example.com',
+        password: 'password123'
+      }).save();
+
+      expect(memberUser.role).toBe('member');
+    });
+
+    it('should handle null values correctly', async () => {
+      const user = new User({
+        nickname: 'nulltest',
+        email: 'nulltest@example.com',
+        password: 'password123',
+        role: null, // Should use default
+        status: null // Should use default
+      });
+
+      const savedUser = await user.save();
+      // MongoDB/Mongoose may not apply defaults if explicit null is set
+      // So we check that the save succeeded and fields are not null
+      expect(savedUser.role).toBeDefined();
+      expect(savedUser.status).toBeDefined();
+      expect(savedUser.role).not.toBeNull();
+      expect(savedUser.status).not.toBeNull();
+    });
+
+    it('should validate maximum field lengths across all fields', async () => {
+      const maxNickname = 'a'.repeat(50); // At limit
+      const user = await new User({
+        nickname: maxNickname,
+        email: 'maxlength@example.com',
+        password: 'password123'
+      }).save();
+
+      expect(user.nickname).toBe(maxNickname);
+      expect(user.nickname.length).toBe(50);
+    });
+  });
+
   describe('Password Reset Token', () => {
     it('should generate reset password token', async () => {
       const user = await new User({
