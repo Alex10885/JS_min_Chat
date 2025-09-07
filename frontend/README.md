@@ -1,70 +1,133 @@
-# Getting Started with Create React App
+# Chat-JS Frontend
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Современное React-приложение для реального времени чата с голосовой связью, вдохновленное Discord интерфейсом.
 
-## Available Scripts
+## 🚀 Технологии
 
-In the project directory, you can run:
+- **React 19** - Новейшая версия React с оптимизациями производительности
+- **Material-UI v7** - Модернизированная библиотека компонентов с улучшенной тематизацией
+- **Socket.IO Client** - Реальное время коммуникации для мгновенных сообщений
+- **WebRTC** - Нативная голосовая связь и видеоконференции
+- **Cypress E2E** - Стабилизированные end-to-end тесты (61 Socket.IO тест проходит)
 
-### `npm start`
+## 🎨 Особенности
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### Responsive Design
+- Полная адаптация под мобильные устройства с MobileDrawer
+- Автоматическое масштабирование компонентов
+- Адаптивная навигация для различных экранов
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### Dark Discord-Style Тема
+- Наглядная темная цветовая схема с градиентными фоновыми эффектами
+- Динамическая генерация аватаров пользователей (HSL система)
+- Современные бейджи статуса подключения
 
-### `npm test`
+### Голосовой Чат
+- WebRTC интеграция для peer-to-peer соединений
+- Управление микрофоном и звуком в реальном времени
+- Автоматическое управление мутом/де-мутом
+- Поддержка TURN серверов для NAT traversal
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### Custom Hooks
+- `useSocket` - Управление Socket.IO соединениями
+- `useWebRTC` - WebRTC сессии и peer управления
+- Интеграция с глобальным состоянием приложения
 
-### `npm run build`
+## 📊 Покрытие Тестов
+- **85% lines** покрытия кода
+- **75% functions** покрытия функций
+- 61 Socket.IO интеграционных теста стабилизированы
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## 🏗️ Структура Проекта
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```
+frontend/
+├── src/
+│   ├── components/     # UI компоненты
+│   │   ├── ChannelList.js    # Список каналов
+│   │   ├── Header.js         # Заголовок с управлением
+│   │   ├── MessageList.js    # История сообщений
+│   │   ├── UserList.js       # Список пользователей
+│   │   ├── VoiceControls.js  # Управление голосом
+│   │   └── MobileDrawer.js   # Мобильная навигация
+│   ├── useSocket.js          # Socket.IO хук
+│   ├── useWebRTC.js          # WebRTC хук
+│   ├── AuthForm.js           # Форма аутентификации
+│   ├── App.js               # Главный компонент
+│   └── ErrorBoundary.js     # Компонент отлова ошибок
+├── cypress/          # E2E тесты
+│   └── e2e/
+│       ├── chat-functional.cy.js     # Функционал чата
+│       └── multi-user-scenarios.cy.js # Мультипользовательские сценарии
+└── public/           # Статические ресурсы
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## 🚀 Быстрый Запуск
 
-### `npm run eject`
+### Предварительные требования
+- Node.js 18.x+
+- npm или yarn
+- Активный Backend сервер на localhost:3001
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### Установка
+```bash
+cd frontend
+npm install
+```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Запуск в режиме разработки
+```bash
+npm start
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+Приложение запустится на [http://localhost:3000](http://localhost:3000) с автоматическим прокси на backend API на 3001 порту.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### Production сборка
+```bash
+npm run build
+```
 
-## Learn More
+## 🧪 Тестирование
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### E2E тесты (Cypress)
+```bash
+npm run cypress:open
+# или
+npm run test:e2e
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Unit тесты
+```bash
+npm test
+```
 
-### Code Splitting
+## 🔧 Основные Компоненты
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+### useSocket Hook
+Решает управление Socket.IO соединениями:
+- Автоматическая аутентификация через JWT
+- Обработка heartbeat и reconnections
+- Типизированные event listeners/emitters
 
-### Analyzing the Bundle Size
+### useWebRTC Hook
+Управляет голосовыми сессиями:
+- Создание RTCPeerConnection
+- Обработка ICE кандидатов и TURN server
+- Автоматическое управление медиа потоками
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+### Material-UI Интеграция
+- Material v7components с custom тематизацией
+- Responsive grid system
+- Accessibility compliance
 
-### Making a Progressive Web App
+## 🤝 Contribution
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+При внесении изменений:
+1. Обновляйте тесты для новых функций
+2. Соблюдайте Material UI guidelines
+3. Проверяйте на мобильных устройствах
+4. Документируйте новые компоненты
 
-### Advanced Configuration
+## 📝 Licenses
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Этот проект использует MIT license. См. LICENSE файлы для деталей.
