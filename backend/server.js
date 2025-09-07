@@ -949,8 +949,10 @@ function cleanupInactiveConnections() {
   }
 }
 
-// Run cleanup every 30 seconds
-setInterval(cleanupInactiveConnections, 30000);
+// Run cleanup every 30 seconds - DISABLED for test environment
+if (process.env.NODE_ENV !== 'test') {
+  setInterval(cleanupInactiveConnections, 30000);
+}
 
 io.on('connection', async (socket) => {
   console.log('🚀 Socket connection established');

@@ -23,6 +23,7 @@ class SocketTestServer {
 
     this.onlineUsers = new Map();
     this.voiceChannels = new Map();
+    this.userConnections = new Map(); // Track user connection counts
 
     this.setupExpress();
     this.setupSocketIO();
@@ -71,9 +72,32 @@ class SocketTestServer {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const user = await User.findById(decoded.id);
 
-        if (!user || user.status !== 'online') {
+        if (!user) {
           return next(new Error('User not found or not online'));
         }
+
+        // Check if user is marked as offline during authentication
+        if (user.status === 'offline') {
+          return next(new Error('User not found or not online'));
+        }
+
+        // Handle user status update based on connection count
+        const userId = decoded.id;
+        const connectionCount = this.userConnections.get(userId) || 0;
+        const newConnectionCount = connectionCount + 1;
+        this.userConnections.set(userId, newConnectionCount);
+
+        // Update user status to online during authentication
+        await User.findOneAndUpdate(
+          { _id: userId },
+          {
+            $set: {
+              status: 'online',
+              lastActive: new Date()
+            }
+          },
+          { new: true, runValidators: true }
+        );
 
         socket.userId = decoded.id;
         socket.nickname = decoded.nickname;
@@ -345,6 +369,22 @@ class SocketTestServer {
       });
 
       socket.on('disconnect', async () => {
+        // Decrease connection count for this user
+        const userId = socket.userId;
+        if (userId) {
+          const currentCount = this.userConnections.get(userId) || 0;
+          const newCount = Math.max(0, currentCount - 1);
+          this.userConnections.set(userId, newCount);
+
+          // Update user status in database if this was the last connection
+          if (newCount === 0) {
+            await User.findByIdAndUpdate(userId, {
+              status: 'offline',
+              lastActive: new Date()
+            });
+          }
+        }
+
         // Leave voice channel if in one
         if (socket.voiceChannel) {
           const channelId = socket.voiceChannel;
@@ -389,13 +429,6 @@ class SocketTestServer {
         }
 
         this.onlineUsers.delete(socket.id);
-
-        if (socket.userId) {
-          await User.findByIdAndUpdate(socket.userId, {
-            status: 'offline',
-            lastActive: new Date()
-          });
-        }
       });
     });
   }
