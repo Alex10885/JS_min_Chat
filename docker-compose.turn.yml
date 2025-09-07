@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  turn:
+    image: coturn/coturn:latest
+    container_name: chat-js-turn-server
+    ports:
+      - "3478:3478"          # STUN port
+      - "3478:3478/udp"      # STUN UDP port
+      - "5349:5349"          # TURN TLS port
+      - "5349:5349/udp"      # TURN TLS UDP port
+      - "49152-65535:49152-65535/udp"  # RTP/RTCP ports (range for media relay)
+
+    volumes:
+      - ./coturn.conf:/etc/coturn/turnserver.conf:ro
+      - ./turn-logs:/var/log/turnserver
+
+    environment:
+      # Pass environment variables from .env file
+      TURN_SECRET: ${TURN_SECRET}
+      TURN_EXTERNAL_IP: ${TURN_EXTERNAL_IP}
+
+    restart: unless-stopped
+
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'        # Limit to half a CPU
+          memory: 256M         # Limit memory usage
+        reservations:
+          cpus: '0.25'         # Reserve quarter CPU
+          memory: 128M         # Reserve 128MB RAM
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "turnadmin", "-l"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    networks:
+      - chat-js-network
+
+networks:
+  chat-js-network:
+    driver: bridge
+
+volumes:
+  turn-logs:
+    driver: local

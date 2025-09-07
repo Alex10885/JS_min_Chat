@@ -1,24 +1,32 @@
 const io = require('socket.io-client');
+const jwt = require('jsonwebtoken');
 const { connectDB, closeDB } = require('../db/connection');
 const User = require('../models/User');
-const jwt = require('jsonwebtoken');
+const Channel = require('../models/Channel');
+const Message = require('../models/Message');
+const SocketTestServer = require('./socket-server.test');
 
+let testServer;
 let testUser;
 let testToken;
+let serverPort;
 
-const PORT = 3001;
-
-describe('Socket.IO Extended Tests', () => {
+describe('Socket.IO Extended Tests - Fixed', () => {
   beforeAll(async () => {
     await connectDB();
+
+    testServer = new SocketTestServer();
+    serverPort = await testServer.start();
 
     testUser = new User({
       nickname: 'extendedSocketTestUser',
       email: 'extended-socket@test.com',
-      password: 'testpass123'
+      password: 'testpass123',
+      status: 'online'
     });
     await testUser.save();
 
+    // Create JWT token
     testToken = jwt.sign(
       { id: testUser._id, nickname: testUser.nickname, role: testUser.role },
       process.env.JWT_SECRET,
@@ -27,6 +35,9 @@ describe('Socket.IO Extended Tests', () => {
   });
 
   afterAll(async () => {
+    if (testServer) {
+      await testServer.stop();
+    }
     await closeDB();
   });
 
