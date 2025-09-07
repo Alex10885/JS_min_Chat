@@ -1,0 +1,12 @@
+{
+  "coverage": {
+    "lines": "https://img.shields.io/badge/lines-0%25-red",
+    "functions": "https://img.shields.io/badge/functions-0%25-red",
+    "branches": "https://img.shields.io/badge/branches-0%25-red",
+    "statements": "https://img.shields.io/badge/statements-0%25-red"
+  },
+  "tests": {
+    "e2e": "https://img.shields.io/badge/e2e-0%25-red"
+  },
+  "status": "https://img.shields.io/badge/tests-passing-brightgreen"
+}

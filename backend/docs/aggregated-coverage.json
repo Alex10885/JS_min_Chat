@@ -1,0 +1,29 @@
+{
+  "timestamp": "2025-09-07T19:51:23.508Z",
+  "backend": {
+    "lines": 0,
+    "functions": 0,
+    "branches": 0,
+    "statements": 0
+  },
+  "frontend": {
+    "lines": 0,
+    "functions": 0,
+    "branches": 0,
+    "statements": 0
+  },
+  "e2e": {
+    "passed": 0,
+    "failed": 0,
+    "total": 0,
+    "success": 0
+  },
+  "badges": {},
+  "overall": {
+    "lines": 0,
+    "functions": 0,
+    "branches": 0,
+    "statements": 0,
+    "e2e_success": 0
+  }
+}

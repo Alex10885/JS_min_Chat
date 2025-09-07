@@ -1,0 +1,3 @@
+@echo off
+echo Committing without hooks...
+git commit --no-verify %*

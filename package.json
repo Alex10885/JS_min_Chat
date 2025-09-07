@@ -14,9 +14,9 @@
     "test:all": "npm run test && cd frontend && npm run e2e:run",
     "build": "cd backend && npm run build 2>/dev/null || echo 'Backend build skipped' && cd ../frontend && npm run build",
     "install:all": "cd backend && npm install && cd ../frontend && npm install",
-    "postinstall": "npm run setup",
+    "postinstall": "npm run hooks:setup",
     "hooks:setup": "node scripts/setup-git-hooks.js",
-    "hooks:install": "npm run install:all && npm run hooks:setup",
+    "hooks:install": "node scripts/setup-git-hooks.js && npm run install:all",
     "hooks:bypass-commit": "git commit --no-verify",
     "hooks:bypass-push": "git push --no-verify",
     "quality:check": "node scripts/update-coverage.js --gates && npm run lint",
@@ -25,7 +25,10 @@
     "dev:backend": "cd backend && npm start",
     "dev:frontend": "cd frontend && npm start",
     "dev": "npm run dev:backend & npm run dev:frontend",
-    "start": "npm run dev"
+    "start": "npm run dev",
+    "commit:no-hooks": "git commit --no-verify",
+    "push:no-hooks": "git push --no-verify",
+    "prepare": "npm run hooks:setup"
   },
   "keywords": [
     "chat",
