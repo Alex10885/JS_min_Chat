@@ -17,15 +17,17 @@ module.exports = defineConfig({
     defaultCommandTimeout: 8000,
     requestTimeout: 10000,
     responseTimeout: 15000,
+    viewportWidth: 1280,
+    viewportHeight: 720,
     retries: {
       runMode: 2,
       openMode: 1,
     },
     numTestsKeptInMemory: 1,
-    reporter: "cypress-multi-reporters",
-    reporterOptions: {
-      configFile: "cypress/reporter-config.json"
-    },
+    // reporter: "cypress-multi-reporters",
+    // reporterOptions: {
+    //   configFile: "cypress/reporter-config.json"
+    // },
     setupNodeEvents(on, config) {
       // implement node event listeners here
     },

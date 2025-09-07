@@ -206,6 +206,55 @@ class SocketTestServer {
         }
       });
 
+      socket.on('private_message', async (data) => {
+        const { to, text } = data;
+        if (!to || !text?.trim()) return;
+
+        try {
+          // Find recipient user
+          const recipient = await User.findOne({ nickname: to });
+          if (!recipient) {
+            socket.emit('error', { message: 'Recipient not found' });
+            return;
+          }
+
+          // Create private message
+          const privateMessage = new Message({
+            author: socket.nickname,
+            target: to,
+            text: text.trim(),
+            type: 'private'
+          });
+
+          await privateMessage.save();
+
+          const messageData = {
+            author: privateMessage.author,
+            text: privateMessage.text,
+            target: privateMessage.target,
+            timestamp: privateMessage.timestamp,
+            type: 'private_message'
+          };
+
+          // Send to recipient if online
+          const recipientUser = Array.from(this.onlineUsers.values()).find(u => u.nickname === to);
+          if (recipientUser) {
+            const recipientSocket = Array.from(this.onlineUsers.keys()).find(socketId =>
+              this.onlineUsers.get(socketId).nickname === to
+            );
+            if (recipientSocket) {
+              this.io.to(recipientSocket).emit('private_message', messageData);
+            }
+          }
+
+          // Send to sender as confirmation
+          socket.emit('private_message', messageData);
+
+        } catch (error) {
+          socket.emit('error', { message: 'Failed to send private message' });
+        }
+      });
+
       socket.on('speaking', (data) => {
         socket.to(socket.room).emit('speaking', {
           nickname: socket.nickname,

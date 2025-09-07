@@ -18,12 +18,20 @@ const AuthForm = ({ onAuthSuccess }) => {
       ? { identifier, password }
       : { nickname, email, password };
 
+    console.log('🔐 Frontend auth submit:', { mode: mode === 0 ? 'login' : 'register', endpoint, data: mode === 0 ? { identifier: data.identifier, hasPassword: !!data.password } : { nickname: data.nickname, email: data.email } });
+
     axios.post(endpoint, data)
       .then(response => {
+        console.log('✅ Frontend auth success:', { hasToken: !!response.data.token, user: response.data.user });
         setErrorMessage('');
         onAuthSuccess(response.data.token, response.data.user);
       })
       .catch(error => {
+        console.log('❌ Frontend auth error:', {
+          status: error.response?.status,
+          data: error.response?.data,
+          message: error?.message || error
+        });
         setErrorMessage(error.response?.data?.message || 'An error occurred');
         console.error('Authentication error:', error);
       });

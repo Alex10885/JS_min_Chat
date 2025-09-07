@@ -184,10 +184,14 @@ app.use((req, res, next) => {
 // JWT authentication middleware
 const authenticateToken = async (req, res, next) => {
   try {
+    console.log('🔐 JWT authentication middleware called:', { url: req.url, method: req.method });
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
+    console.log('🔑 Token extraction result:', { hasAuthHeader: !!authHeader, hasToken: !!token });
+
     if (!token) {
+      console.log('❌ No token provided');
       return res.status(401).json({
         error: 'Access token required',
         code: 'NO_TOKEN'
@@ -195,9 +199,11 @@ const authenticateToken = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('✅ JWT decoded:', { userId: decoded.userId, nickname: decoded.nickname });
     const user = await User.findById(decoded.userId);
 
     if (!user) {
+      console.log('❌ User not found in DB for JWT userId:', decoded.userId);
       return res.status(401).json({
         error: 'User not found',
         code: 'USER_NOT_FOUND'
@@ -205,7 +211,7 @@ const authenticateToken = async (req, res, next) => {
     }
 
     req.user = user;
-    console.log('✅ JWT authentication successful for user:', user.nickname);
+    console.log('✅ JWT authentication successful for user:', user.nickname, { id: user._id, status: user.status });
     next();
   } catch (error) {
     logger.warn('JWT authentication failed:', {
@@ -507,8 +513,115 @@ app.use((req, res, next) => {
 
 
 /**
-  * @swagger
-  * /api/register:
+   * @swagger
+   * /api/login:
+   *   post:
+   *     tags:
+   *       - Authentication
+   *     summary: Login existing user
+   *     description: Authenticates and logs in an existing user with JWT token
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             $ref: '#/components/schemas/LoginRequest'
+   *     responses:
+   *       200:
+   *         description: Login successful
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/AuthResponse'
+   *             example:
+   *               token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+   *               user:
+   *                 id: "507f1f77bcf86cd799439011"
+   *                 nickname: "john_doe"
+   *                 email: "john@example.com"
+   *                 role: "member"
+   *       400:
+   *         description: Invalid credentials or validation errors
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ErrorResponse'
+   *             example:
+   *               error: "Invalid credentials"
+   *       500:
+   *         description: Server error
+   */
+console.log('🔧 POST /api/login route registered at startup');
+app.post('/api/login', [
+  body('identifier').isLength({ min: 1, max: 50 }).trim(),
+  body('password').isLength({ min: 6, max: 100 })
+], async (req, res) => {
+  try {
+    console.log('🔑 Incoming login request:', { identifier: req.body.identifier, hasPassword: !!req.body.password, ip: req.ip });
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.log('❌ Login validation errors:', errors.array());
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { identifier, password } = req.body;
+    console.log('🔍 Searching for user with identifier:', identifier);
+
+    // Find user by nickname or email
+    const user = await User.findOne({
+      $or: [{ nickname: identifier }, { email: identifier }]
+    });
+
+    if (!user) {
+      console.log('❌ User not found:', identifier);
+      return res.status(400).json({ error: 'Invalid credentials' });
+    }
+
+    console.log('✅ User found:', { nickname: user.nickname, email: user.email, status: user.status });
+
+    // Compare password
+    const isPasswordValid = await user.comparePassword(password);
+    console.log('🔑 Password validation result:', isPasswordValid);
+
+    if (!isPasswordValid) {
+      console.log('❌ Invalid password for user:', user.nickname);
+      return res.status(400).json({ error: 'Invalid credentials' });
+    }
+
+    // Update user status to online
+    user.status = 'online';
+    await user.save();
+
+    // Generate JWT token
+    console.log('🔏 Generating JWT token for user:', user.nickname);
+    const token = jwt.sign(
+      { userId: user._id, nickname: user.nickname, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    console.log('✅ JWT token generated successfully');
+
+    logger.info(`User logged in: ${user.nickname}`);
+
+    console.log('📤 Sending login response');
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        nickname: user.nickname,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    logger.error('Login error:', error);
+    res.status(500).json({ error: 'Server error during login' });
+  }
+});
+
+/**
+   * @swagger
+   * /api/register:
   *   post:
   *     tags:
   *       - Authentication
@@ -600,99 +713,6 @@ app.post('/api/register', authRateLimiter, [
     logger.error('Registration error:', error);
     res.status(500).json({ error: 'Server error during registration' });
   }
-/**
-  * @swagger
-  * /api/login:
-  *   post:
-  *     tags:
-  *       - Authentication
-  *     summary: Login existing user
-  *     description: Authenticates and logs in an existing user with JWT token
-  *     requestBody:
-  *       required: true
-  *       content:
-  *         application/json:
-  *           schema:
-  *             $ref: '#/components/schemas/LoginRequest'
-  *     responses:
-  *       200:
-  *         description: Login successful
-  *         content:
-  *           application/json:
-  *             schema:
-  *               $ref: '#/components/schemas/AuthResponse'
-  *             example:
-  *               token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-  *               user:
-  *                 id: "507f1f77bcf86cd799439011"
-  *                 nickname: "john_doe"
-  *                 email: "john@example.com"
-  *                 role: "member"
-  *       400:
-  *         description: Invalid credentials or validation errors
-  *         content:
-  *           application/json:
-  *             schema:
-  *               $ref: '#/components/schemas/ErrorResponse'
-  *             example:
-  *               error: "Invalid credentials"
-  *       500:
-  *         description: Server error
-  */
-app.post('/api/login', [
-  body('identifier').isLength({ min: 1 }).trim(),
-  body('password').isLength({ min: 1 })
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { identifier, password } = req.body;
-
-    // Find user by nickname or email
-    const user = await User.findOne({
-      $or: [{ nickname: identifier }, { email: identifier }]
-    });
-
-    if (!user) {
-      return res.status(400).json({ error: 'Invalid credentials' });
-    }
-
-    // Compare password
-    const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid) {
-      return res.status(400).json({ error: 'Invalid credentials' });
-    }
-
-    // Update user status to online
-    user.status = 'online';
-    await user.save();
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: user._id, nickname: user.nickname, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    logger.info(`User logged in: ${user.nickname}`);
-
-    res.json({
-      token,
-      user: {
-        id: user._id,
-        nickname: user.nickname,
-        email: user.email,
-        role: user.role
-      }
-    });
-  } catch (error) {
-    logger.error('Login error:', error);
-    res.status(500).json({ error: 'Server error during login' });
-  }
-});
 });
 
 /**
@@ -784,6 +804,9 @@ app.use(errorHandler);
 // Global users map for socket management {socketId: {userId, nickname, room}}
 let onlineUsers = new Map();
 
+// User connection counter {userId: connectionCount}
+let userConnections = new Map();
+
 // Voice channels management
 const voiceChannels = new Map(); // channelId -> { socketId: { peerConnection, stream } }
 
@@ -807,66 +830,56 @@ io.use(async (socket, next) => {
       return next(new Error('User not found'));
     }
 
-    // Atomic update user status to online with concurrency handling
+    // Handle user status update based on connection count
     try {
       const userId = decoded.userId;
-      const currentTime = new Date();
+      const connectionCount = userConnections.get(userId) || 0;
+      const newConnectionCount = connectionCount + 1;
+      userConnections.set(userId, newConnectionCount);
 
+      // Update user status with connection count tracking
       const updateResult = await User.findOneAndUpdate(
-        {
-          _id: userId,
-          $or: [
-            { status: { $ne: 'online' } }, // If not online, update
-            { lastActive: { $lt: new Date(currentTime.getTime() - 30000) } } // If online but inactive for 30+ seconds
-          ]
-        },
+        { _id: userId },
         {
           $set: {
-            status: 'online',
-            lastActive: currentTime
+            status: newConnectionCount > 0 ? 'online' : 'offline',
+            lastActive: new Date()
           }
         },
         {
-          new: true, // Return updated document
+          new: true,
           runValidators: true
         }
       );
 
       if (updateResult) {
-        console.log(`🔄 Socket auth: User ${decoded.nickname} status set to online (was: ${updateResult.status})`);
+        console.log(`🔄 Socket auth: User ${user.nickname} status set to online (connections: ${newConnectionCount})`);
         logger.info(`User status updated to online via socket auth`, {
           userId: userId,
-          nickname: decoded.nickname,
-          previousStatus: user.status, // Old status before update
+          nickname: user.nickname,
+          connections: newConnectionCount,
           socketId: socket.id,
-          timestamp: currentTime
-        });
-      } else {
-        console.log(`✅ Socket auth: User ${decoded.nickname} already online or recently active`);
-        logger.info(`User status unchanged via socket auth`, {
-          userId: userId,
-          nickname: decoded.nickname,
-          currentStatus: user.status,
-          socketId: socket.id,
-          reason: 'already_online_or_recent'
+          timestamp: new Date()
         });
       }
 
       // Override local user object with updated data
-      user.status = updateResult ? updateResult.status : user.status;
-      user.lastActive = updateResult ? updateResult.lastActive : user.lastActive;
+      user.status = updateResult ? updateResult.status : 'online';
+      user.lastActive = updateResult ? updateResult.lastActive : new Date();
 
     } catch (statusUpdateError) {
-      console.error(`❌ Socket auth: Failed to update user status for ${decoded.nickname}:`, statusUpdateError.message);
+      console.error(`❌ Socket auth: Failed to update user status for ${user.nickname}:`, statusUpdateError.message);
       logger.error(`Status update failed during socket auth`, {
-        userId: decoded.userId,
-        nickname: decoded.nickname,
+        userId: userId,
+        nickname: user.nickname,
         error: statusUpdateError.message,
         socketId: socket.id
       });
 
-      // Don't fail auth due to status update error - proceed with current status
-      console.log(`⚠️ Socket auth: Proceeding with current user status despite update failure`);
+      // Don't fail auth due to status update error - proceed with default online status
+      console.log(`⚠️ Socket auth: Proceeding with online status despite update failure`);
+      user.status = 'online';
+      user.lastActive = new Date();
     }
 
     socket.userId = decoded.userId;
@@ -889,6 +902,50 @@ io.use(async (socket, next) => {
   }
 });
 
+/**
+ * Cleanup inactive connections based on heartbeat
+ */
+function cleanupInactiveConnections() {
+  const now = Date.now();
+  const timeout = 60000; // 60 seconds timeout
+
+  for (const [socketId, user] of onlineUsers.entries()) {
+    if (now - user.lastHeartbeat > timeout) {
+      console.log(`🧹 Cleansing dead connection for user ${user.nickname}`);
+
+      // Force disconnect socket
+      const socket = io.sockets.sockets.get(socketId);
+      if (socket) {
+        socket.disconnect(true);
+      }
+
+      // Update user connections count
+      const connectionsLeft = (userConnections.get(user.userId) || 0) - 1;
+      userConnections.set(user.userId, Math.max(0, connectionsLeft));
+
+      // Set status to offline if last connection
+      if (connectionsLeft <= 0) {
+        User.findByIdAndUpdate(user.userId, {
+          status: 'offline',
+          lastActive: new Date()
+        }).catch(err => logger.error('Error updating status on cleanup:', err));
+
+        console.log(`🔄 User ${user.nickname} status set to offline (dead connection)`);
+        logger.info(`User status set to offline due to dead connection`, {
+          userId: user.userId,
+          nickname: user.nickname,
+          socketId: socketId
+        });
+      }
+
+      onlineUsers.delete(socketId);
+    }
+  }
+}
+
+// Run cleanup every 30 seconds
+setInterval(cleanupInactiveConnections, 30000);
+
 io.on('connection', async (socket) => {
   console.log('🚀 Socket connection established');
   console.log(`👤 User ${socket.nickname} connected`);
@@ -898,13 +955,32 @@ io.on('connection', async (socket) => {
     userId: socket.userId,
     nickname: socket.nickname,
     role: socket.role,
-    room: null
+    room: null,
+    lastHeartbeat: Date.now()
   });
 
   // Log current active connections count
   console.log(`📊 Active socket connections: ${onlineUsers.size} - auth success for ${socket.nickname}`);
 
+  // Heartbeat mechanism
+  socket.on('heartbeat', () => {
+    const user = onlineUsers.get(socket.id);
+    if (user) {
+      user.lastHeartbeat = Date.now();
+      console.log(`💓 Heartbeat received from user ${socket.nickname}`);
+    }
+  });
+
+  // Update heartbeat on user activity
+  const updateHeartbeat = () => {
+    const user = onlineUsers.get(socket.id);
+    if (user) {
+      user.lastHeartbeat = Date.now();
+    }
+  };
+
   socket.on('join_room', async (data) => {
+    updateHeartbeat();
     const { room } = data;
     if (!room) {
       logger.warn('Join room failed: No room specified', {
@@ -1063,6 +1139,7 @@ io.on('connection', async (socket) => {
 
   // Public message
   socket.on('message', async (data) => {
+    updateHeartbeat();
     if (!socket.room || !data.text?.trim()) return;
 
     try {
@@ -1094,6 +1171,7 @@ io.on('connection', async (socket) => {
 
   // Private message
   socket.on('private_message', async (data) => {
+    updateHeartbeat();
     if (!socket.room || !data.to || !data.text?.trim()) return;
 
     const trimmedText = data.text.trim();
@@ -1234,11 +1312,13 @@ io.on('connection', async (socket) => {
 
   // Speaking
   socket.on('speaking', (data) => {
+    updateHeartbeat();
     socket.to(socket.room).emit('speaking', { nickname: socket.nickname, speaking: data.speaking });
   });
 
   // Voice channel events
   socket.on('join_voice_channel', async (data) => {
+    updateHeartbeat();
     const { channelId } = data;
     if (!channelId) return;
 
@@ -1277,6 +1357,7 @@ io.on('connection', async (socket) => {
   });
 
   socket.on('leave_voice_channel', () => {
+    updateHeartbeat();
     if (!socket.voiceChannel) return;
 
     const channelId = socket.voiceChannel;
@@ -1331,6 +1412,21 @@ io.on('connection', async (socket) => {
     logger.info(`User ${socket.nickname} disconnected`);
 
     try {
+      const userId = socket.userId;
+
+      // Decrease connection count for this user
+      if (userId) {
+        const currentCount = userConnections.get(userId) || 0;
+        const newCount = Math.max(0, currentCount - 1);
+        userConnections.set(userId, newCount);
+
+        logger.info(`User ${socket.nickname} disconnected (remaining connections: ${newCount})`, {
+          userId: userId,
+          socketId: socket.id,
+          connectionsLeft: newCount
+        });
+      }
+
       // Leave voice channel if in one
       if (socket.voiceChannel) {
         const channelId = socket.voiceChannel;
@@ -1380,21 +1476,40 @@ io.on('connection', async (socket) => {
       // Log current connections after disconnect
       logger.info(`After disconnect, active socket connections: ${onlineUsers.size}`);
 
-      // Update user status in database if user exists
-      if (socket.userId) {
-        await User.findByIdAndUpdate(socket.userId, {
-          status: 'offline',
-          lastActive: new Date()
-        });
+      // Update user status in database if this was the last connection
+      if (userId) {
+        const remainingConnections = userConnections.get(userId) || 0;
+        if (remainingConnections === 0) {
+          await User.findByIdAndUpdate(userId, {
+            status: 'offline',
+            lastActive: new Date()
+          });
+          console.log(`🔄 User ${socket.nickname} status set to offline (last connection)`);
+          logger.info(`User status set to offline (last connection)`, {
+            userId: userId,
+            nickname: socket.nickname
+          });
+        } else {
+          // Update lastActive but keep status online
+          await User.findByIdAndUpdate(userId, {
+            lastActive: new Date()
+          });
+          console.log(`✅ User ${socket.nickname} still online (${remainingConnections} connections left)`);
+          logger.info(`User remains online`, {
+            userId: userId,
+            nickname: socket.nickname,
+            connectionsLeft: remainingConnections
+          });
+        }
       }
 
     } catch (error) {
       logger.error('Error in disconnect handler:', error);
     }
-  });
+ });
 });
 
-// Initialize database and start server
+// Initialize database and start server (duplicate removed)
 const initializeServer = async () => {
   try {
     // Connect to MongoDB

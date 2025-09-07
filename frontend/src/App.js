@@ -75,7 +75,9 @@ function App() {
   // Configure axios interceptors
   useEffect(() => {
     // Configure axios defaults
-    axios.defaults.baseURL = 'http://localhost:3001/api';
+    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+    const apiBasePath = process.env.REACT_APP_API_BASE_PATH || '/api';
+    axios.defaults.baseURL = `${apiUrl}${apiBasePath}`;
     axios.defaults.timeout = 10000; // 10 seconds timeout
 
     // Request interceptor for auth tokens

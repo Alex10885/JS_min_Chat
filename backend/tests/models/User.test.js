@@ -272,4 +272,166 @@ describe('User Model', () => {
       expect(user.email).toBe('trim@example.com');
     });
   });
+  describe('Password Reset Methods', () => {
+    it('should generate a valid reset token', async () => {
+      const userData = {
+        nickname: 'resettokentest',
+        email: 'reset@example.com',
+        password: 'password123'
+      };
+
+      const user = new User(userData);
+      await user.save();
+
+      const resetToken = user.generateResetToken();
+
+      expect(resetToken).toBeDefined();
+      expect(typeof resetToken).toBe('string');
+      expect(resetToken.length).toBeGreaterThan(0);
+
+      // Check if token is stored hashed
+      expect(user.resetPasswordToken).not.toBe(resetToken);
+      expect(user.resetPasswordToken).toMatch(/^[a-f0-9]{64}$/); // SHA256 hex hash
+
+      // Check if expiration is set
+      expect(user.resetPasswordExpires).toBeDefined();
+      expect(user.resetPasswordExpires.getTime()).toBeGreaterThan(Date.now());
+    });
+
+    it('should reset password with valid token', async () => {
+      const userData = {
+        nickname: 'resetpasstest',
+        email: 'resetpass@example.com',
+        password: 'oldpassword'
+      };
+
+      const user = new User(userData);
+      await user.save();
+      const oldPassword = user.password;
+
+      const resetToken = user.generateResetToken();
+      await user.save(); // Save the reset token
+
+      // Reset password using the token
+      await user.resetPassword(resetToken, 'newSecurePassword123');
+
+      // Check password was changed and reset fields cleared
+      expect(user.password).not.toBe(oldPassword);
+      expect(user.resetPasswordToken).toBeNull();
+      expect(user.resetPasswordExpires).toBeNull();
+
+      // Verify new password works
+      const isValid = await user.comparePassword('newSecurePassword123');
+      expect(isValid).toBe(true);
+
+      const isOldInvalid = await user.comparePassword('oldpassword');
+      expect(isOldInvalid).toBe(false);
+    });
+
+    it('should reject reset with invalid token', async () => {
+      const userData = {
+        nickname: 'invalidresettoken',
+        email: 'invalidreset@example.com',
+        password: 'password123'
+      };
+
+      const user = new User(userData);
+      await user.save();
+
+      user.generateResetToken();
+      await user.save();
+
+      // Try to reset with wrong token
+      let error;
+      try {
+        await user.resetPassword('invalidtoken', 'newpassword');
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.message).toBe('Invalid or expired password reset token');
+      expect(user.password).toBeDefined(); // Password shouldn't have changed
+    });
+
+    it('should reject reset with expired token', async () => {
+      const userData = {
+        nickname: 'expiredresettoken',
+        email: 'expiredreset@example.com',
+        password: 'password123'
+      };
+
+      const user = new Date();
+      await user.save();
+
+      user.generateResetToken();
+      // Manually expire the token
+      user.resetPasswordExpires = new Date(Date.now() - 1000); // Expired 1 second ago
+      await user.save();
+
+      // Try to reset with expired token
+      let error;
+      try {
+        await user.resetPassword(user.resetPasswordToken, 'newpassword');
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.message).toBe('Password reset token has expired');
+    });
+
+    it('should handle missing token fields', async () => {
+      const user = new User({
+        nickname: 'missingtokentest',
+        email: 'missingtoken@example.com',
+        password: 'password123'
+      });
+
+      let error;
+      try {
+        await user.resetPassword('sometoken', 'newpassword');
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.message).toBe('Invalid or expired password reset token');
+    });
+  });
+
+  describe('Concurrency Handling', () => {
+    it('should handle concurrent status updates', async () => {
+      const userData = {
+        nickname: 'concurrenttest',
+        email: 'concurrent@example.com',
+        password: 'password123'
+      };
+
+      const user1 = new User(userData);
+      const user2 = new User(userData);
+
+      // Create users
+      await User.create(userData);
+      await User.create(userData);
+
+      // Try concurrent updates
+      const update1 = User.findOneAndUpdate(
+        { nickname: 'concurrenttest' },
+        { status: 'online', lastActive: new Date() },
+        { new: true }
+      );
+
+      const update2 = User.findOneAndUpdate(
+        { nickname: 'conurrenttest' },
+        { status: 'online', lastActive: new Date() },
+        { new: true }
+      );
+
+      const [result1, result2] = await Promise.all([update1, update2]);
+
+      // At least one should succeed
+      expect(result1 !== null || result2 !== null).toBe(true);
+    });
+  });
 });

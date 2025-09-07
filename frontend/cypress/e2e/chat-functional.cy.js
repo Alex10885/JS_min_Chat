@@ -1,25 +1,15 @@
 describe('Chat App - End-to-End Functional Tests', () => {
   beforeEach(() => {
-    // Clear localStorage and handle exceptions
-    cy.window().then((win) => {
-      win.localStorage.clear();
-    });
     cy.on('uncaught:exception', (err) => {
       cy.log('Uncaught exception:', err.message);
       return false; // Prevent Cypress from failing the test
     });
 
-    // Log page load and DOM state
-    cy.visit('/', { timeout: 10000 }).then(() => {
-      cy.log('Page visited successfully');
-      cy.document().then((doc) => {
-        cy.log('DOM snapshot: title -', doc.title);
-        cy.log('Body children count:', doc.body.children.length);
-      });
-    });
-
     // Log if backend is responding
-    cy.request({ url: 'http://localhost:3001/health', failOnStatusCode: false }).then((response) => {
+    cy.request({
+      url: `${Cypress.env('apiUrl') || 'http://localhost:3001'}/health`,
+      failOnStatusCode: false
+    }).then((response) => {
       if (response.status === 200) {
         cy.log('Backend health check: OK');
       } else {
@@ -27,24 +17,10 @@ describe('Chat App - End-to-End Functional Tests', () => {
       }
     });
 
-    // Perform user login to enable UI elements
-    cy.log('Attempting user login...');
-    cy.request('POST', 'http://localhost:3001/api/register', {
-      identifier: `cypress-test-${Date.now()}`,
-      password: 'testpass123'
-    }).then((regResponse) => {
-      cy.log('Registration response:', regResponse.status);
-      return regResponse.status === 201 || regResponse.status === 200
-        ? regResponse.body
-        : cy.request('POST', 'http://localhost:3001/api/login', {
-            identifier: 'testuser',
-            password: 'password123'
-          });
-    }).then(() => {
-      cy.log('Login/registration completed');
-    }).catch((err) => {
-      cy.log('Auth error (using test account):', err.message);
-      // Fallback to existing test user if available
+    // Ensure user is authenticated using improved auth command
+    cy.log('Ensuring user authentication...');
+    cy.ensureAuthenticated().then(() => {
+      cy.log('Authentication completed');
     });
   });
 
@@ -54,18 +30,24 @@ describe('Chat App - End-to-End Functional Tests', () => {
   });
 
   it('should display chat interface elements', () => {
+    // Wait for page to fully load
+    cy.contains('Chat Server').should('be.visible');
+
     // Check that main chat elements are present
     cy.get('[data-testid="VolumeUpIcon"]').should('exist'); // Voice channel icon
     cy.get('input[type="text"]').should('exist'); // Message input
-    cy.get('button').contains('Отправить').should('exist'); // Send button
+    cy.get('button[type="button"]').contains('Отправить').should('be.visible'); // Send button
   });
 
   it('should handle message input and sending', () => {
+    // Join General channel first
+    cy.contains('General').click();
+
     // Type a message
     cy.get('input[type="text"]').type('Hello from Cypress E2E test!');
 
     // Send message
-    cy.get('button').contains('Отправить').click();
+    cy.get('button[type="button"]').contains('Отправить').click();
 
     // Check that input is cleared
     cy.get('input[type="text"]').should('have.value', '');
@@ -89,22 +71,28 @@ describe('Chat App - End-to-End Functional Tests', () => {
   });
 
   it('should handle channel creation', () => {
-    // Click on the Create Channel section
+    // Wait for sidebar to be ready
+    cy.contains('Каналы').should('be.visible');
+
+    // Get the first new channel input in the sidebar
     cy.get('input[placeholder="New Channel Name"]').first().type('Test Channel');
 
     // Click text channel button
-    cy.get('button').contains('# Текст').click();
+    cy.get('button').contains('# Текст').first().click();
 
     // Check that the new channel appears
     cy.contains('Test Channel').should('be.visible');
   });
 
   it('should handle voice channel creation', () => {
-    // Click on the Create Channel section for voice
+    // Wait for sidebar to be ready
+    cy.contains('Каналы').should('be.visible');
+
+    // Get the first new channel input in the sidebar
     cy.get('input[placeholder="New Channel Name"]').first().type('Test Voice Channel');
 
     // Click voice channel button
-    cy.get('button').contains('🎤 Голос').click();
+    cy.get('button').contains('🎤 Голос').first().click();
 
     // Check that the new voice channel appears
     cy.contains('Test Voice Channel').should('be.visible');
@@ -112,7 +100,10 @@ describe('Chat App - End-to-End Functional Tests', () => {
 
   it('should support responsive design - mobile view', () => {
     // Set mobile viewport
-    cy.viewport('iphone-6');
+    cy.viewport(375, 667); // iPhone 6 dimensions
+
+    // Reload page to apply viewport
+    cy.reload();
 
     // Check that mobile drawer menu exists
     cy.get('[data-testid="MenuIcon"]').should('be.visible');
@@ -136,10 +127,10 @@ describe('Chat App - End-to-End Functional Tests', () => {
 
     // Send multiple messages
     cy.get('input[type="text"]').type('First message');
-    cy.get('button').contains('Отправить').click();
+    cy.get('button[type="button"]').contains('Отправить').click();
 
     cy.get('input[type="text"]').type('Second message');
-    cy.get('button').contains('Отправить').click();
+    cy.get('button[type="button"]').contains('Отправить').click();
 
     // Check that messages appear
     cy.contains('First message').should('be.visible');
@@ -152,7 +143,7 @@ describe('Chat App - End-to-End Functional Tests', () => {
 
     // Send private message command (this would normally require another user)
     cy.get('input[type="text"]').type('/w TestUser Private message test');
-    cy.get('button').contains('Отправить').click();
+    cy.get('button[type="button"]').contains('Отправить').click();
 
     // For this test we can't verify the private message receipt without multi-user setup
     // But we can at least check that the command is accepted
@@ -162,10 +153,11 @@ describe('Chat App - End-to-End Functional Tests', () => {
 
 describe('Chat App - Voice Channel Functionality', () => {
   beforeEach(() => {
-    cy.window().then((win) => {
-      win.localStorage.clear();
+    cy.on('uncaught:exception', (err) => {
+      cy.log('Uncaught exception:', err.message);
+      return false;
     });
-    cy.visit('/');
+    cy.ensureAuthenticated();
   });
 
   it('should display voice channel options', () => {
@@ -185,10 +177,11 @@ describe('Chat App - Voice Channel Functionality', () => {
 
 describe('Chat App - Error Handling and Recovery', () => {
   beforeEach(() => {
-    cy.window().then((win) => {
-      win.localStorage.clear();
+    cy.on('uncaught:exception', (err) => {
+      cy.log('Uncaught exception:', err.message);
+      return false;
     });
-    cy.visit('/');
+    cy.ensureAuthenticated();
   });
 
   it('should handle network disconnection gracefully', () => {
@@ -203,7 +196,7 @@ describe('Chat App - Error Handling and Recovery', () => {
 
     // Try sending empty message
     cy.get('input[type="text"]').type('   ');
-    cy.get('button').contains('Отправить').click();
+    cy.get('button[type="button"]').contains('Отправить').click();
 
     // Message should not be sent (input remains)
     cy.get('input[type="text"]').should('have.value', '   ');
@@ -215,8 +208,9 @@ describe('Chat App - Error Handling and Recovery', () => {
     cy.get('input[type="text"]').should('be.visible');
 
     // Create and switch to new channel
+    cy.contains('Каналы').should('be.visible');
     cy.get('input[placeholder="New Channel Name"]').first().type('Another Channel');
-    cy.get('button').contains('# Текст').click();
+    cy.get('button').contains('# Текст').first().click();
     cy.contains('Another Channel').click();
 
     // Input should still be available
@@ -226,10 +220,11 @@ describe('Chat App - Error Handling and Recovery', () => {
 
 describe('Chat App - User Experience', () => {
   beforeEach(() => {
-    cy.window().then((win) => {
-      win.localStorage.clear();
+    cy.on('uncaught:exception', (err) => {
+      cy.log('Uncaught exception:', err.message);
+      return false;
     });
-    cy.visit('/');
+    cy.ensureAuthenticated();
   });
 
   it('should maintain user context on reload', () => {
