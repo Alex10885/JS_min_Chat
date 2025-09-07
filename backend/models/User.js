@@ -27,7 +27,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'member'],
+    enum: ['admin', 'moderator', 'member'],
     default: 'member'
   },
   createdAt: {
@@ -43,11 +43,43 @@ const userSchema = new mongoose.Schema({
     enum: ['online', 'offline'],
     default: 'offline'
   },
+  // Moderation fields
+  banned: {
+    type: Boolean,
+    default: false
+  },
+  banReason: {
+    type: String,
+    default: null
+  },
+  banExpires: {
+    type: Date,
+    default: null
+  },
+  warnings: [{
+    reason: String,
+    issuedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    issuedAt: { type: Date, default: Date.now },
+    expires: Date
+  }],
+  muteExpires: {
+    type: Date,
+    default: null
+  },
+  // Temporary tokens
   resetPasswordToken: {
     type: String,
     default: null
   },
   resetPasswordExpires: {
+    type: Date,
+    default: null
+  },
+  moderationToken: {
+    type: String,
+    default: null
+  },
+  moderationTokenExpires: {
     type: Date,
     default: null
   }
@@ -114,10 +146,130 @@ userSchema.methods.resetPassword = function(token, newPassword) {
   return this.save();
 };
 
-// Remove password from JSON output
+// Ban user
+userSchema.methods.ban = function(reason, duration = null, issuedBy = null) {
+  this.banned = true;
+  this.banReason = reason;
+  if (duration) {
+    this.banExpires = new Date(Date.now() + duration);
+  } else {
+    this.banExpires = null; // permanent ban
+  }
+  return this.save();
+};
+
+// Unban user
+userSchema.methods.unban = function() {
+  this.banned = false;
+  this.banReason = null;
+  this.banExpires = null;
+  return this.save();
+};
+
+// Check if user is banned and if ban is active
+userSchema.methods.isBanned = function() {
+  if (!this.banned) return false;
+  if (!this.banExpires) return true; // permanent ban
+  return this.banExpires > new Date(); // temporary ban still active
+};
+
+// Add warning to user
+userSchema.methods.warn = function(reason, issuedBy, duration = null) {
+  const warning = {
+    reason: reason,
+    issuedBy: issuedBy,
+    issuedAt: new Date(),
+    expires: duration ? new Date(Date.now() + duration) : null
+  };
+  this.warnings.push(warning);
+  return this.save();
+};
+
+// Remove expired warnings
+userSchema.methods.cleanWarnings = function() {
+  this.warnings = this.warnings.filter(warning => {
+    return !warning.expires || warning.expires > new Date();
+  });
+  return this.save();
+};
+
+// Get active warnings count
+userSchema.methods.getActiveWarningsCount = function() {
+  this.cleanWarnings();
+  return this.warnings.length;
+};
+
+// Mute user (for chat)
+userSchema.methods.mute = function(duration = 3600000) { // default 1 hour
+  this.muteExpires = new Date(Date.now() + duration);
+  return this.save();
+};
+
+// Unmute user
+userSchema.methods.unmute = function() {
+  this.muteExpires = null;
+  return this.save();
+};
+
+// Check if user is muted
+userSchema.methods.isMuted = function() {
+  return this.muteExpires && this.muteExpires > new Date();
+};
+
+// Generate moderation token for admin actions
+userSchema.methods.generateModerationToken = function() {
+  const moderationToken = crypto.randomBytes(32).toString('hex');
+  this.moderationToken = crypto
+    .createHash('sha256')
+    .update(moderationToken)
+    .digest('hex');
+  this.moderationTokenExpires = Date.now() + 3600000; // 1 hour
+  return this.save().then(() => moderationToken);
+};
+
+// Verify moderation token
+userSchema.methods.verifyModerationToken = function(token) {
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(token)
+    .digest('hex');
+
+  if (hashedToken !== this.moderationToken) {
+    throw new Error('Invalid moderation token');
+  }
+
+  if (Date.now() > this.moderationTokenExpires) {
+    throw new Error('Moderation token expired');
+  }
+
+  this.moderationToken = null;
+  this.moderationTokenExpires = null;
+  return this.save();
+};
+
+// Check if user has moderator/admin permissions
+userSchema.methods.hasModeratorPrivileges = function() {
+  return this.role === 'admin' || this.role === 'moderator';
+};
+
+userSchema.methods.hasAdminPrivileges = function() {
+  return this.role === 'admin';
+};
+
+// Remove password and sensitive data from JSON output
 userSchema.methods.toJSON = function() {
   const userObject = this.toObject();
   delete userObject.password;
+  delete userObject.resetPasswordToken;
+  delete userObject.resetPasswordExpires;
+  delete userObject.moderationToken;
+  delete userObject.moderationTokenExpires;
+  // Don't show ban details to regular users
+  if (!this.hasModeratorPrivileges()) {
+    delete userObject.banReason;
+    delete userObject.banExpires;
+    delete userObject.warnings;
+  }
   return userObject;
 };
 

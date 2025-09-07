@@ -11,6 +11,8 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
 const mongoose = require('mongoose');
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
 const { connectDB, closeDB } = require('./db/connection');
 const emailService = require('./services/emailService');
 
@@ -109,6 +111,31 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' })); // Add payload size limit
 
+// Session configuration with secure settings
+const sessionMiddleware = session({
+  secret: process.env.SESSION_SECRET || 'your-very-long-secure-secret-key-change-in-production',
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGO_URI || 'mongodb://localhost:27017/chat-app',
+    collectionName: 'sessions',
+    ttl: 24 * 60 * 60, // 1 day in seconds
+    autoRemove: 'native',
+    touchAfter: 24 * 3600 // Reduce DB load by limiting session saves
+  }),
+  cookie: {
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+    httpOnly: true, // Prevent XSS access to cookie
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    sameSite: 'strict' // CSRF protection
+  },
+  name: 'chatSession', // Custom name to avoid default 'connect.sid'
+  rolling: false, // Don't extend cookie expiration on each request
+  unset: 'destroy' // Destroy session on logout
+});
+
+app.use(sessionMiddleware);
+
 // Error handling middleware
 const errorHandler = (err, req, res, next) => {
   logger.error('Unhandled error:', {
@@ -185,6 +212,41 @@ app.use((req, res, next) => {
   next();
 });
 
+// Session authentication middleware (works parallel to JWT)
+const authenticateSession = async (req, res, next) => {
+  try {
+    console.log('🔐 Session authentication middleware called:', { url: req.url, method: req.method, sessionId: req.sessionID });
+
+    // Check if session exists and has authenticated user
+    if (req.session && req.session.authenticated && req.session.userId) {
+      console.log('🎯 Found authenticated session for userId:', req.session.userId);
+
+      const user = await User.findById(req.session.userId);
+      if (user) {
+        console.log('✅ Session user found:', { nickname: user.nickname, id: user._id, status: user.status });
+        req.sessionUser = user; // Store in req.sessionUser to avoid conflict with JWT req.user
+      } else {
+        console.log('⚠️ Session user not found in DB, cleaning session:', req.session.userId);
+        // Clean invalid session
+        delete req.session.authenticated;
+        delete req.session.userId;
+      }
+    } else {
+      console.log('🔍 No authenticated session found or session not initialized');
+      req.sessionUser = null; // Explicitly set to null when no session
+    }
+    next();
+  } catch (error) {
+    logger.warn('Session authentication error:', {
+      error: error.message,
+      sessionId: req.sessionID,
+      ip: req.ip
+    });
+    req.sessionUser = null; // Set to null on error
+    next();
+  }
+};
+
 // JWT authentication middleware
 const authenticateToken = async (req, res, next) => {
   try {
@@ -243,6 +305,64 @@ const authenticateToken = async (req, res, next) => {
     });
   }
 };
+
+// Role-based access control middleware
+const requireModerator = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Authentication required',
+        code: 'AUTH_REQUIRED'
+      });
+    }
+
+    if (!req.user.hasModeratorPrivileges()) {
+      return res.status(403).json({
+        error: 'Moderator privileges required',
+        code: 'MODERATOR_REQUIRED'
+      });
+    }
+
+    next();
+  } catch (error) {
+    logger.error('Moderator check error:', error);
+    res.status(500).json({
+      error: 'Server error during authorization check',
+      code: 'AUTH_CHECK_ERROR'
+    });
+  }
+};
+
+const requireAdmin = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Authentication required',
+        code: 'AUTH_REQUIRED'
+      });
+    }
+
+    if (!req.user.hasAdminPrivileges()) {
+      return res.status(403).json({
+        error: 'Administrator privileges required',
+        code: 'ADMIN_REQUIRED'
+      });
+    }
+
+    next();
+  } catch (error) {
+    logger.error('Admin check error:', error);
+    res.status(500).json({
+      error: 'Server error during authorization check',
+      code: 'AUTH_CHECK_ERROR'
+    });
+  }
+};
+
+// Error handling middleware
+
+// Session authentication middleware (run before rate limiting)
+app.use(authenticateSession);
 
 // General rate limiting (applied to all HTTP requests)
 app.use(generalRateLimiter);
@@ -479,6 +599,389 @@ app.use('/api-docs', (req, res, next) => {
   next();
 }, swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+// Administrative endpoints - require moderator privileges
+console.log('🔧 Administrative API endpoints registered at startup');
+
+// GET /api/admin/users - List all users with moderation info
+app.get('/api/admin/users', authenticateToken, requireModerator, apiRateLimiter, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+
+    const users = await User.find({})
+      .select('-password -resetPasswordToken -resetPasswordExpires -moderationToken -moderationTokenExpires')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await User.countDocuments();
+
+    logger.info(`Admin user list requested by ${req.user.nickname}`, {
+      adminId: req.user._id,
+      page,
+      limit,
+      total
+    });
+
+    res.json({
+      users,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    logger.error('Error fetching users for admin:', error);
+    res.status(500).json({ error: 'Failed to fetch users', code: 'DATABASE_ERROR' });
+  }
+});
+
+// POST /api/admin/users/:userId/ban - Ban a user
+app.post('/api/admin/users/:userId/ban', authenticateToken, requireModerator, apiRateLimiter, [
+  body('reason').isLength({ min: 1, max: 500 }).trim(),
+  body('duration').optional().isInt({ min: 1, max: 31536000 }) // Max 1 year in seconds
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { userId } = req.params;
+    const { reason, duration } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Prevent banning yourself
+    if (user._id.toString() === req.user._id.toString()) {
+      return res.status(400).json({ error: 'Cannot ban yourself' });
+    }
+
+    // Prevent non-admin from banning admin
+    if (user.role === 'admin' && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Cannot ban administrator' });
+    }
+
+    await user.ban(reason, duration, req.user._id);
+
+    logger.info(`User ${user.nickname} banned by ${req.user.nickname}`, {
+      bannedUserId: userId,
+      bannedById: req.user._id,
+      reason,
+      duration
+    });
+
+    res.json({
+      message: `User ${user.nickname} has been banned`,
+      user: {
+        id: user._id,
+        nickname: user.nickname,
+        banned: true,
+        banReason: reason,
+        banExpires: user.banExpires
+      }
+    });
+  } catch (error) {
+    logger.error('Error banning user:', error);
+    res.status(500).json({ error: 'Failed to ban user' });
+  }
+});
+
+// POST /api/admin/users/:userId/unban - Unban a user
+app.post('/api/admin/users/:userId/unban', authenticateToken, requireModerator, apiRateLimiter, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (!user.banned) {
+      return res.status(400).json({ error: 'User is not banned' });
+    }
+
+    await user.unban();
+
+    logger.info(`User ${user.nickname} unbanned by ${req.user.nickname}`, {
+      unbannedUserId: userId,
+      unbannedById: req.user._id
+    });
+
+    res.json({
+      message: `User ${user.nickname} has been unbanned`,
+      user: {
+        id: user._id,
+        nickname: user.nickname,
+        banned: false
+      }
+    });
+  } catch (error) {
+    logger.error('Error unbanning user:', error);
+    res.status(500).json({ error: 'Failed to unban user' });
+  }
+});
+
+// POST /api/admin/users/:userId/warn - Issue warning to user
+app.post('/api/admin/users/:userId/warn', authenticateToken, requireModerator, apiRateLimiter, [
+  body('reason').isLength({ min: 1, max: 500 }).trim(),
+  body('duration').optional().isInt({ min: 1, max: 31536000 })
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { userId } = req.params;
+    const { reason, duration } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await user.warn(reason, req.user._id, duration);
+    await user.save();
+
+    logger.info(`Warning issued to user ${user.nickname} by ${req.user.nickname}`, {
+      warnedUserId: userId,
+      warnedById: req.user._id,
+      reason,
+      duration
+    });
+
+    res.json({
+      message: `Warning issued to user ${user.nickname}`,
+      warning: {
+        reason,
+        issuedBy: req.user.nickname,
+        issuedAt: new Date(),
+        expires: duration ? new Date(Date.now() + duration) : null
+      },
+      user: {
+        id: user._id,
+        nickname: user.nickname,
+        warningsCount: user.getActiveWarningsCount()
+      }
+    });
+  } catch (error) {
+    logger.error('Error warning user:', error);
+    res.status(500).json({ error: 'Failed to warn user' });
+  }
+});
+
+// POST /api/admin/users/:userId/role - Change user role
+app.post('/api/admin/users/:userId/role', authenticateToken, requireAdmin, apiRateLimiter, [
+  body('role').isIn(['member', 'moderator', 'admin'])
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { userId } = req.params;
+    const { role: newRole } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Prevent modifying your own role in potentially problematic ways
+    if (user._id.toString() === req.user._id.toString()) {
+      return res.status(400).json({ error: 'Cannot modify your own role' });
+    }
+
+    // Prevent non-admin from promoting to admin or demoting admin
+    if ((newRole === 'admin' || user.role === 'admin') && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only administrators can manage admin roles' });
+    }
+
+    const oldRole = user.role;
+    user.role = newRole;
+    await user.save();
+
+    logger.info(`User ${user.nickname} role changed from ${oldRole} to ${newRole} by ${req.user.nickname}`, {
+      changedUserId: userId,
+      changedById: req.user._id,
+      oldRole,
+      newRole
+    });
+
+    res.json({
+      message: `User ${user.nickname} role changed to ${newRole}`,
+      user: {
+        id: user._id,
+        nickname: user.nickname,
+        role: newRole
+      }
+    });
+  } catch (error) {
+    logger.error('Error changing user role:', error);
+    res.status(500).json({ error: 'Failed to change user role' });
+  }
+});
+
+// POST /api/admin/users/:userId/mute - Mute user
+app.post('/api/admin/users/:userId/mute', authenticateToken, requireModerator, apiRateLimiter, [
+  body('duration').isInt({ min: 60, max: 86400 }) // 1 minute to 24 hours
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { userId } = req.params;
+    const { duration } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await user.mute(duration);
+
+    logger.info(`User ${user.nickname} muted by ${req.user.nickname}`, {
+      mutedUserId: userId,
+      mutedById: req.user._id,
+      duration
+    });
+
+    res.json({
+      message: `User ${user.nickname} has been muted`,
+      user: {
+        id: user._id,
+        nickname: user.nickname,
+        muteExpires: user.muteExpires
+      }
+    });
+  } catch (error) {
+    logger.error('Error muting user:', error);
+    res.status(500).json({ error: 'Failed to mute user' });
+  }
+});
+
+// POST /api/admin/users/:userId/unmute - Unmute user
+app.post('/api/admin/users/:userId/unmute', authenticateToken, requireModerator, apiRateLimiter, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (!user.isMuted()) {
+      return res.status(400).json({ error: 'User is not muted' });
+    }
+
+    await user.unmute();
+
+    logger.info(`User ${user.nickname} unmuted by ${req.user.nickname}`, {
+      unmutedUserId: userId,
+      unmutedById: req.user._id
+    });
+
+    res.json({
+      message: `User ${user.nickname} has been unmuted`,
+      user: {
+        id: user._id,
+        nickname: user.nickname,
+        muteExpires: null
+      }
+    });
+  } catch (error) {
+    logger.error('Error unmuting user:', error);
+    res.status(500).json({ error: 'Failed to unmute user' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/users:
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Get list of all registered users
+ *     description: Retrieves a list of all users with their roles and online status
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of users successfully retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                     description: User's unique identifier
+ *                   nickname:
+ *                     type: string
+ *                     description: User's display name
+ *                   role:
+ *                     type: string
+ *                     enum: [admin, moderator, member]
+ *                     description: User's role level
+ *                   status:
+ *                     type: string
+ *                     enum: [online, offline]
+ *                     description: User's online status
+ *                   createdAt:
+ *                     type: string
+ *                     format: date-time
+ *                     description: User registration date
+ *                   lastActive:
+ *                     type: string
+ *                     format: date-time
+ *                     description: Last activity timestamp
+ *             example:
+ *               - id: "507f1f77bcf86cd799439011"
+ *                 nickname: "john_doe"
+ *                 role: "member"
+ *                 status: "online"
+ *                 createdAt: "2024-09-07T10:30:00Z"
+ *                 lastActive: "2024-09-07T22:15:00Z"
+ *       401:
+ *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server error
+ */
+console.log('🔧 GET /api/users route registered at startup');
+app.get('/api/users', authenticateToken, apiRateLimiter, async (req, res) => {
+  try {
+    const users = await User.find({})
+      .select('_id nickname role status createdAt lastActive')
+      .sort({ nickname: 1 });
+
+    logger.info(`Users list requested by ${req.user.nickname}`, {
+      userId: req.user._id,
+      totalUsers: users.length
+    });
+
+    console.log('📤 Returning users data:', users.length);
+    res.json(users);
+  } catch (error) {
+    logger.error('Error fetching users:', error);
+    console.error('❌ Error in GET /api/users:', error.message);
+    res.status(500).json({ error: 'Failed to fetch users', code: 'DATABASE_ERROR' });
+  }
+});
+
 // Swagger JSON endpoint
 app.get('/api-docs.json', (req, res) => {
   res.removeHeader('Content-Security-Policy');
@@ -617,10 +1120,39 @@ app.post('/api/login', [
     user.status = 'online';
     await user.save();
 
+    // Store user in session for parallel authentication
+    console.log('🔏 Storing user in session for user:', user.nickname);
+    req.session.authenticated = true;
+    req.session.userId = user._id.toString();
+    req.session.nickname = user.nickname; // Store additional info for convenience
+    req.session.role = user.role;
+    req.session.csrfToken = process.env.JWT_SECRET; // Simple CSRF protection using JWT_SECRET
+    req.session.loginTime = new Date().toISOString();
+    req.session.userAgent = req.get('User-Agent'); // Store user agent for additional security
+
+    // Save session before JWT generation
+    await new Promise((resolve, reject) => {
+      req.session.save((err) => {
+        if (err) {
+          console.error('❌ Session save error:', err);
+          reject(err);
+        } else {
+          console.log('✅ Session saved successfully with CSRF protection');
+          resolve();
+        }
+      });
+    });
+
     // Generate JWT token
     console.log('🔏 Generating JWT token for user:', user.nickname);
     const token = jwt.sign(
-      { userId: user._id, nickname: user.nickname, role: user.role },
+      {
+        userId: user._id,
+        nickname: user.nickname,
+        role: user.role,
+        csrfToken: req.session.csrfToken,
+        sessionId: req.sessionId
+      },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -630,12 +1162,17 @@ app.post('/api/login', [
 
     console.log('📤 Sending login response');
     res.json({
-      token,
+      token, // JWT for API calls and WebSockets
       user: {
         id: user._id,
         nickname: user.nickname,
         email: user.email,
         role: user.role
+      },
+      session: {
+        authenticated: true,
+        id: req.sessionId,
+        expires: req.session.cookie.expires
       }
     });
   } catch (error) {
@@ -715,9 +1252,38 @@ app.post('/api/register', authRateLimiter, [
     const user = new User({ nickname, email, password, role: 'member', status: 'online' });
     await user.save();
 
+    console.log('🔏 Storing registered user in session');
+    // Store user in session for parallel authentication during registration
+    req.session.authenticated = true;
+    req.session.userId = user._id.toString();
+    req.session.nickname = user.nickname;
+    req.session.role = user.role;
+    req.session.csrfToken = process.env.JWT_SECRET; // CSRF protection
+    req.session.registrationTime = new Date().toISOString();
+    req.session.userAgent = req.get('User-Agent'); // Additional security tracking
+
+    // Save session before JWT generation
+    await new Promise((resolve, reject) => {
+      req.session.save((err) => {
+        if (err) {
+          console.error('❌ Session save error during registration:', err);
+          reject(err);
+        } else {
+          console.log('✅ Session saved successfully during registration with security features');
+          resolve();
+        }
+      });
+    });
+
     console.log('JWT_SECRET present:', !!process.env.JWT_SECRET);
     const token = jwt.sign(
-      { userId: user._id, nickname: user.nickname, role: user.role },
+      {
+        userId: user._id,
+        nickname: user.nickname,
+        role: user.role,
+        csrfToken: req.session.csrfToken,
+        sessionId: req.sessionId
+      },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -726,12 +1292,17 @@ app.post('/api/register', authRateLimiter, [
     logger.info(`User registered: ${user.nickname}`);
 
     res.status(201).json({
-      token,
+      token, // JWT for API calls and WebSockets
       user: {
         id: user._id,
         nickname: user.nickname,
         email: user.email,
         role: user.role
+      },
+      session: {
+        authenticated: true,
+        id: req.sessionId,
+        expires: req.session.cookie.expires
       }
     });
   } catch (error) {
@@ -799,7 +1370,355 @@ app.get('/api/channels', authenticateToken, apiRateLimiter, async (req, res) => 
   }
 });
 
-// 404 handler (must be before global error handler)
+console.log('🔧 POST /api/channels route registered at startup');
+
+/**
+ * @swagger
+ * /api/channels:
+ *   post:
+ *     tags:
+ *       - Channels
+ *     summary: Create a new channel
+ *     description: Creates a new text or voice channel
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ChannelRequest'
+ *           example:
+ *             name: "NewChannel"
+ *             type: "text"
+ *             description: "Description of the new channel"
+ *     responses:
+ *       201:
+ *         description: Channel created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Channel'
+ *             example:
+ *               id: "newchannel"
+ *               name: "NewChannel"
+ *               type: "text"
+ *               description: "Description of the new channel"
+ *               createdBy: "john_doe"
+ *               position: 10
+ *       400:
+ *         description: Invalid request data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized
+ *       409:
+ *         description: Channel name already exists
+ *       500:
+ *         description: Server error
+ */
+app.post('/api/channels', authenticateToken, apiRateLimiter, [
+  body('name').isLength({ min: 1, max: 100 }).trim().escape(),
+  body('type').isIn(['text', 'voice']).trim(),
+  body('description').optional().isLength({ max: 500 }).trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { name, type, description } = req.body;
+    const createdBy = req.user.nickname;
+
+    // Create new channel (ID will be auto-generated in pre-save middleware)
+    const channel = new Channel({
+      name,
+      type,
+      description,
+      createdBy
+    });
+
+    await channel.save();
+
+    logger.info(`Channel '${name}' created by ${createdBy}`, {
+      channelId: channel.id,
+      type,
+      userId: req.user._id
+    });
+
+    res.status(201).json({
+      id: channel.id,
+      name: channel.name,
+      type: channel.type,
+      description: channel.description,
+      createdBy: channel.createdBy,
+      position: channel.position
+    });
+
+  } catch (error) {
+    logger.error('Error creating channel:', error);
+
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        error: 'Invalid channel data',
+        details: error.message
+      });
+    }
+
+    if (error.code === 11000) {
+      return res.status(409).json({
+        error: 'Channel name already exists',
+        code: 'DUPLICATE_CHANNEL'
+      });
+    }
+
+    res.status(500).json({
+      error: 'Failed to create channel',
+      code: 'DATABASE_ERROR'
+    });
+  }
+});
+
+console.log('🔧 POST /api/logout route registered at startup');
+app.post('/api/logout', authenticateToken, apiRateLimiter, async (req, res) => {
+  try {
+    console.log('🚪 Logout request from user:', req.user.nickname, { userId: req.user._id });
+
+    // Disconnect all Socket.IO connections for this user
+    const sockets = onlineUsers;
+    let disconnectedCount = 0;
+    for (const [socketId, socketData] of sockets.entries()) {
+      if (socketData.userId === req.user._id.toString()) {
+        const socket = io.sockets.sockets.get(socketId);
+        if (socket) {
+          socket.disconnect();
+          disconnectedCount++;
+        }
+      }
+    }
+
+    // Update user status to offline
+    await User.findByIdAndUpdate(req.user._id, {
+      status: 'offline',
+      lastActive: new Date()
+    });
+
+    console.log(`✅ User ${req.user.nickname} logged out successfully, ${disconnectedCount} connections disconnected`);
+    logger.info(`User logged out: ${req.user.nickname}`, {
+      userId: req.user._id,
+      disconnectedSockets: disconnectedCount
+    });
+
+    res.json({
+      success: true,
+      message: 'Logged out successfully',
+      disconnectedCount
+    });
+  } catch (error) {
+    logger.error('Logout error:', error);
+    res.status(500).json({ error: 'Server error during logout' });
+  }
+});
+
+/**
+ * Session logout endpoint - destroys session
+ * This complements JWT logout to handle session-based authentication
+ */
+app.post('/api/logout_session', apiRateLimiter, async (req, res) => {
+  try {
+    console.log('🚪 Session logout request, sessionId:', req.sessionId);
+
+    // Check if there's an authenticated session or JWT user
+    const hasJwtAuth = !!req.user; // From JWT middleware
+    const hasSessionAuth = req.sessionUser || (req.session && req.session.authenticated);
+    const sessionUserId = req.session && req.session.userId;
+
+    console.log('🤔 Session logout check:', {
+      hasJwtAuth,
+      hasSessionAuth,
+      sessionUserId,
+      sessionId: req.sessionId
+    });
+
+    if (hasSessionAuth) {
+      const sessionUser = sessionUserId ? await User.findById(sessionUserId) : null;
+      const nickname = sessionUser ? sessionUser.nickname : 'unknown';
+
+      console.log('✅ Session logout: Destroying session for user:', nickname);
+
+      // Disconnect Socket.IO connections for this session user
+      if (sessionUserId) {
+        const sockets = onlineUsers;
+        let disconnectedCount = 0;
+        for (const [socketId, socketData] of sockets.entries()) {
+          if (socketData.userId === sessionUserId) {
+            const socket = io.sockets.sockets.get(socketId);
+            if (socket) {
+              socket.disconnect();
+              disconnectedCount++;
+            }
+          }
+        }
+
+        console.log(`🗑️ Session logout: Disconnected ${disconnectedCount} socket connections`);
+      }
+
+      // Destroy the session
+      await new Promise((resolve, reject) => {
+        req.session.destroy((err) => {
+          if (err) {
+            console.error('❌ Session destroy error:', err);
+            reject(err);
+          } else {
+            console.log('✅ Session destroyed successfully');
+            resolve();
+          }
+        });
+      });
+
+      logger.info(`Session logged out: ${nickname}`, {
+        sessionId: req.sessionId,
+        ip: req.ip
+      });
+
+      res.json({
+        success: true,
+        message: 'Session logged out successfully',
+        type: 'session_logout',
+        sessionDestroyed: true
+      });
+    } else {
+      console.log('⚠️ Session logout: No authenticated session to destroy');
+      res.json({
+        success: true,
+        message: 'No active session to log out',
+        type: 'session_logout',
+        sessionDestroyed: false
+      });
+    }
+
+  } catch (error) {
+    logger.error('Session logout error:', error);
+    res.status(500).json({
+      error: 'Server error during session logout',
+      code: 'SESSION_LOGOUT_ERROR'
+    });
+  }
+});
+
+// Hybrid logout endpoint - handles both JWT and session logout
+app.post('/api/logout_complete', apiRateLimiter, async (req, res) => {
+  try {
+    console.log('🚪 Complete logout request (JWT + Session), sessionId:', req.sessionId);
+
+    const hasJwtAuth = !!req.user;
+    const hasSessionAuth = req.sessionUser || (req.session && req.session.authenticated);
+    const sessionUserId = req.session && req.session.userId;
+
+    let jwtLogoutResult = null;
+    let sessionLogoutResult = null;
+
+    // Handle JWT logout if JWT is provided
+    if (hasJwtAuth) {
+      try {
+        const sockets = onlineUsers;
+        let disconnectedCount = 0;
+        for (const [socketId, socketData] of sockets.entries()) {
+          if (socketData.userId === req.user._id.toString()) {
+            const socket = io.sockets.sockets.get(socketId);
+            if (socket) {
+              socket.disconnect();
+              disconnectedCount++;
+            }
+          }
+        }
+
+        await User.findByIdAndUpdate(req.user._id, {
+          status: 'offline',
+          lastActive: new Date()
+        });
+
+        jwtLogoutResult = {
+          success: true,
+          disconnectedCount
+        };
+      } catch (jwtError) {
+        jwtLogoutResult = {
+          success: false,
+          error: jwtError.message
+        };
+      }
+    }
+
+    // Handle session logout if session exists
+    if (hasSessionAuth) {
+      try {
+        if (sessionUserId) {
+          const sessionUser = await User.findById(sessionUserId);
+          console.log('✅ Session logout: Destroying session for user:', sessionUser ? sessionUser.nickname : 'unknown');
+
+          // Disconnect Socket.IO connections for this session user
+          const sockets = onlineUsers;
+          let disconnectedCount = 0;
+          for (const [socketId, socketData] of sockets.entries()) {
+            if (socketData.userId === sessionUserId) {
+              const socket = io.sockets.sockets.get(socketId);
+              if (socket) {
+                socket.disconnect();
+                disconnectedCount++;
+              }
+            }
+          }
+          console.log(`🗑️ Session logout: Disconnected ${disconnectedCount} socket connections`);
+        }
+
+        // Destroy the session
+        await new Promise((resolve, reject) => {
+          req.session.destroy((err) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
+
+        sessionLogoutResult = {
+          success: true,
+          sessionDestroyed: true
+        };
+      } catch (sessionError) {
+        sessionLogoutResult = {
+          success: false,
+          error: sessionError.message
+        };
+      }
+    }
+
+    const overallSuccess = (!jwtLogoutResult || jwtLogoutResult.success) &&
+                          (!sessionLogoutResult || sessionLogoutResult.success);
+
+    res.json({
+      success: overallSuccess,
+      message: 'Complete logout processed',
+      type: 'complete_logout',
+      jwt: jwtLogoutResult,
+      session: sessionLogoutResult
+    });
+
+  } catch (error) {
+    logger.error('Complete logout error:', error);
+    res.status(500).json({
+      error: 'Server error during complete logout',
+      code: 'COMPLETE_LOGOUT_ERROR'
+    });
+  }
+});
+
+//  404 handler (must be before global error handler)
 app.use((req, res) => {
   console.warn('❌ Final 404 handler executed - route not found!', { method: req.method, url: req.url });
   logger.warn(`404 - ${req.method} ${req.url}`, {
@@ -835,101 +1754,106 @@ let userConnections = new Map();
 // Voice channels management
 const voiceChannels = new Map(); // channelId -> { socketId: { peerConnection, stream } }
 
-io.use(async (socket, next) => {
-  const token = socket.handshake.auth.token;
-  console.log('🔑 Socket authentication attempt, token present:', !!token);
+// Enable session support for Socket.IO
+io.use(sessionMiddleware);
 
-  if (!token) {
-    console.log('❌ Socket authentication failed: No token provided');
-    return next(new Error('Authentication token required'));
+// Socket.IO authentication middleware
+io.use(async (socket, next) => {
+  const { sessionId, csrfToken } = socket.handshake.auth;
+  const session = socket.request.session;
+
+  console.log('🔑 Socket authentication attempt with session and CSRF');
+
+  // Validate session exists and has authentication
+  if (!session || !session.authenticated || !session.userId) {
+    console.log('❌ Socket authentication failed: No authenticated session');
+    return next(new Error('Session authentication required'));
+  }
+
+  // Validate CSRF token for additional security (simplified for now - use JWT_SECRET)
+  if (!csrfToken || csrfToken !== process.env.JWT_SECRET) {
+    console.log('❌ Socket authentication failed: Invalid CSRF token');
+    return next(new Error('CSRF validation failed'));
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId);
-
-    console.log(`✅ Socket auth success: ${decoded.nickname}, user found: ${!!user}`);
-
+    // Verify user exists in database
+    const user = await User.findById(session.userId);
     if (!user) {
-      console.log('❌ Socket authentication failed: User not found');
-      return next(new Error('User not found or not online'));
-    }
-
-    // Check if user is marked as offline during authentication
-    if (user.status === 'offline') {
-      console.log('❌ Socket authentication failed: User is offline');
-      return next(new Error('User not found or not online'));
+      console.log('❌ Socket authentication failed: User not found in DB');
+      return next(new Error('User not found in session'));
     }
 
     // Handle user status update based on connection count
-    try {
-      const userId = decoded.userId;
-      const connectionCount = userConnections.get(userId) || 0;
-      const newConnectionCount = connectionCount + 1;
-      userConnections.set(userId, newConnectionCount);
+    const userId = session.userId;
+    const connectionCount = userConnections.get(userId) || 0;
+    const newConnectionCount = connectionCount + 1;
+    userConnections.set(userId, newConnectionCount);
 
-      // Update user status with connection count tracking
-      const updateResult = await User.findOneAndUpdate(
-        { _id: userId },
-        {
-          $set: {
-            status: newConnectionCount > 0 ? 'online' : 'offline',
-            lastActive: new Date()
-          }
-        },
-        {
-          new: true,
-          runValidators: true
-        }
-      );
-
-      if (updateResult) {
-        console.log(`🔄 Socket auth: User ${user.nickname} status set to online (connections: ${newConnectionCount})`);
-        logger.info(`User status updated to online via socket auth`, {
-          userId: userId,
-          nickname: user.nickname,
-          connections: newConnectionCount,
-          socketId: socket.id,
-          timestamp: new Date()
-        });
-      }
-
-      // Override local user object with updated data
-      user.status = updateResult ? updateResult.status : 'online';
-      user.lastActive = updateResult ? updateResult.lastActive : new Date();
-
-    } catch (statusUpdateError) {
-      console.error(`❌ Socket auth: Failed to update user status for ${user.nickname}:`, statusUpdateError.message);
-      logger.error(`Status update failed during socket auth`, {
+    // Check if user is banned
+    if (user.isBanned()) {
+      console.log('❌ Socket authentication failed: User is banned', {
         userId: userId,
         nickname: user.nickname,
-        error: statusUpdateError.message,
-        socketId: socket.id
+        banReason: user.banReason,
+        banExpires: user.banExpires
       });
-
-      // Don't fail auth due to status update error - proceed with default online status
-      console.log(`⚠️ Socket auth: Proceeding with online status despite update failure`);
-      user.status = 'online';
-      user.lastActive = new Date();
+      socket.emit('banned', {
+        reason: user.banReason || 'You have been banned from the server',
+        expires: user.banExpires
+      });
+      return next(new Error('User is banned'));
     }
 
-    socket.userId = decoded.userId;
-    socket.nickname = decoded.nickname;
-    socket.role = decoded.role;
-    console.log(`🎉 Socket fully authenticated: ${socket.nickname}`);
+    // Check if user is muted and enforce mute in chat
+    const isMuted = user.isMuted();
+    console.log('🔇 User mute status checked:', { nickname: user.nickname, isMuted, muteExpires: user.muteExpires });
+
+    // Update user status with connection count tracking
+    const updateResult = await User.findOneAndUpdate(
+      { _id: userId },
+      {
+        $set: {
+          status: newConnectionCount > 0 ? 'online' : 'offline',
+          lastActive: new Date()
+        }
+      },
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    if (updateResult) {
+      console.log(`🔄 Socket auth: User ${user.nickname} status set to online (connections: ${newConnectionCount})`);
+      logger.info(`User status updated to online via socket auth`, {
+        userId: userId,
+        nickname: user.nickname,
+        connections: newConnectionCount,
+        socketId: socket.id,
+        timestamp: new Date()
+      });
+    }
+
+    // Override local user object with updated data
+    user.status = updateResult ? updateResult.status : 'online';
+    user.lastActive = updateResult ? updateResult.lastActive : new Date();
+
+    // Set socket properties for authenticated user
+    socket.userId = session.userId;
+    socket.nickname = session.nickname;
+    socket.role = session.role || 'member';
+    console.log(`🎉 Socket authenticated via session: ${socket.nickname} (userId: ${socket.userId})`);
     return next();
-  } catch (err) {
-    console.error('❌ Socket authentication error:', err.message);
 
-    if (err.name === 'JsonWebTokenError') {
-      return next(new Error('Invalid authentication token'));
-    }
-
-    if (err.name === 'TokenExpiredError') {
-      return next(new Error('Authentication token has expired'));
-    }
-
-    return next(new Error('Authentication failed'));
+  } catch (error) {
+    console.error('❌ Socket authentication error:', error.message);
+    logger.error(`Socket auth failed: ${error.message}`, {
+      socketId: socket.id,
+      sessionId: session?.id,
+      ip: socket.handshake.address
+    });
+    return next(new Error('Socket authentication failed'));
   }
 });
 
@@ -1174,6 +2098,17 @@ io.on('connection', async (socket) => {
   socket.on('message', async (data) => {
     updateHeartbeat();
     if (!socket.room || !data.text?.trim()) return;
+
+    // Check if user is muted
+    const currentUser = await User.findById(socket.userId);
+    if (currentUser && currentUser.isMuted()) {
+      socket.emit('error', {
+        message: 'You are muted and cannot send messages',
+        code: 'USER_MUTED',
+        muteExpires: currentUser.muteExpires
+      });
+      return;
+    }
 
     try {
       const message = new Message({

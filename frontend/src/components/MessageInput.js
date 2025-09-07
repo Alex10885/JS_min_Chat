@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { TextField, Button, Box, Typography } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 
 const MessageInput = ({ socket, isConnected, currentRoom, onSendMessage }) => {
   const [input, setInput] = useState('');
 
-  const handleSendMessage = () => {
+  const handleSendMessage = useCallback(() => {
     if (!socket || !isConnected) {
       return;
     }
@@ -28,14 +28,18 @@ const MessageInput = ({ socket, isConnected, currentRoom, onSendMessage }) => {
       }
       setInput('');
     }
-  };
+  }, [socket, isConnected, input, currentRoom, onSendMessage]);
 
-  const handleKeyPress = (e) => {
+  const handleKeyPress = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
-  };
+  }, [handleSendMessage]);
+
+  const handleInputChange = useCallback((e) => {
+    setInput(e.target.value);
+  }, []);
 
   return (
     <Box sx={{
@@ -55,7 +59,7 @@ const MessageInput = ({ socket, isConnected, currentRoom, onSendMessage }) => {
               : 'Введите сообщение... (Enter для отправки, /w ник сообщение для личного)'
           }
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={handleInputChange}
           onKeyPress={handleKeyPress}
           disabled={!isConnected || !currentRoom}
           multiline
@@ -110,4 +114,4 @@ const MessageInput = ({ socket, isConnected, currentRoom, onSendMessage }) => {
   );
 };
 
-export default MessageInput;
+export default React.memo(MessageInput);

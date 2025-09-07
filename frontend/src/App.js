@@ -1,28 +1,24 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import ErrorBoundary from './ErrorBoundary';
 import useSocket from './useSocket';
 import useWebRTC from './useWebRTC';
 import AuthForm from './AuthForm';
+import Header from './components/Header';
 import axios from 'axios';
 
-import { Container, Paper, TextField, Button, List, ListItem, Typography, Box, ListItemText, Avatar, ThemeProvider, createTheme, CssBaseline, Badge, Drawer, IconButton, useMediaQuery, Dialog, DialogTitle, DialogContent } from '@mui/material';
-import { SnackbarProvider, useSnackbar } from 'notistack';
+import { Container, Paper, TextField, Button, List, ListItem, Typography, Box, ListItemText, Avatar, ThemeProvider, createTheme, CssBaseline, Badge, Drawer, useMediaQuery, Dialog, DialogTitle, DialogContent } from '@mui/material';
+import MessageList from './components/MessageList';
+import { useSnackbar } from 'notistack';
 import Grid from '@mui/material/Grid';
 import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import FolderIcon from '@mui/icons-material/Folder';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
-import SpeakerIcon from '@mui/icons-material/Speaker';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import MicIcon from '@mui/icons-material/Mic';
 import MicOffIcon from '@mui/icons-material/MicOff';
-import AddIcon from '@mui/icons-material/Add';
-import RemoveIcon from '@mui/icons-material/Remove';
 import HeadphonesIcon from '@mui/icons-material/Headphones';
-import MenuIcon from '@mui/icons-material/Menu';
 
   // Old socket removed - using useSocket hook now
 
@@ -70,6 +66,30 @@ function App() {
     localStorage.setItem('chatToken', token);
     localStorage.setItem('nickname', user.nickname);
     localStorage.setItem('role', user.role);
+  };
+
+  const handleLogout = async () => {
+    try {
+      // Call logout endpoint
+      await axios.post('/api/logout');
+
+      // Clear local storage
+      localStorage.removeItem('chatToken');
+      localStorage.removeItem('nickname');
+      localStorage.removeItem('role');
+
+      // Reset state to trigger login
+      setToken('');
+
+      console.log('✅ Logout successful');
+    } catch (error) {
+      console.error('❌ Logout failed:', error.message);
+      // Clear storage anyway and force re-auth
+      localStorage.removeItem('chatToken');
+      localStorage.removeItem('nickname');
+      localStorage.removeItem('role');
+      setToken('');
+    }
   };
 
   // Configure axios interceptors
@@ -153,45 +173,47 @@ function App() {
   const [input, setInput] = useState('');
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [channels, setChannels] = useState([]);
-  const [expanded, setExpanded] = useState([]);
-  const [selected, setSelected] = useState('general');
   const [newChannelName, setNewChannelName] = useState('');
+  const [expanded, setExpanded] = useState([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [voiceChannel, setVoiceChannel] = useState(null);
   const [inVoice, setInVoice] = useState(false);
+  const [selected, setSelected] = useState('');
 
   // Socket connection hook
   const { socket, isConnected, connectionStatus } = useSocket(token, { nickname, role });
 
   // WebRTC voice hook
   const {
-    isConnected: voiceConnected,
     isMuted,
     participants: voiceParticipants,
     localAudioRef,
     toggleMute
   } = useWebRTC(socket, voiceChannel);
 
-  const validSelectedItems = useMemo(() => {
-    const validChannels = channels.filter(c => c.id);
-    if (!room || !validChannels.find(c => c.id === room)) return [];
-    return [room];
-  }, [channels, room]);
 
   useEffect(() => {
     if (!token) return;
 
-    // Fetch channels and set initial room
-    axios.get('/channels')
-      .then(res => {
-        const uniqueChannels = res.data.filter((channel, index, self) =>
-          index === self.findIndex(c => c.id === channel.id)
-        );
-        setChannels(uniqueChannels);
-        setExpanded(['server']);
-      })
-      .catch(err => console.error('Failed to fetch channels:', err));
-  }, [token]);
+    const fetchInitialData = async () => {
+      try {
+        axios.get('/channels')
+          .then(res => {
+            const uniqueChannels = res.data.filter((channel, index, self) =>
+              index === self.findIndex(c => c.id === channel.id)
+            );
+            setChannels(uniqueChannels);
+            setExpanded(['server']);
+            console.log('Fetched channels:', uniqueChannels);
+          })
+          .catch(err => console.error('Failed to fetch channels:', err));
+      } catch (error) {
+        console.error('Failed to fetch channels:', error);
+      }
+    };
+
+    fetchInitialData();
+  }, [token, enqueueSnackbar]);
 
   useEffect(() => {
     if (!token || !room || !socket) return;
@@ -296,49 +318,15 @@ function App() {
       <ThemeProvider theme={darkTheme}>
         <CssBaseline />
         <Container maxWidth={false} style={{ height: '100vh', width: '100vw', background: 'linear-gradient(180deg, #5865f2 0%, #313338 100%)', padding: 0, margin: 0 }}>
-          <Box sx={{ height: 50, bgcolor: '#36393f', display: 'flex', alignItems: 'center', px: 2 }}>
-          {isMobile && (
-            <IconButton onClick={() => setDrawerOpen(true)} sx={{ color: '#ffffff' }}>
-              <MenuIcon />
-            </IconButton>
-          )}
-          <Typography variant={isMobile ? 'body1' : 'h6'} sx={{ color: '#ffffff', ml: isMobile ? 0 : 0 }}>
-            Chat Server
-          </Typography>
-
-          {/* Connection Status Indicator */}
-          <Box sx={{ ml: 2, display: 'flex', alignItems: 'center' }}>
-            <Box
-              sx={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                bgcolor: isConnected ? '#4caf50' : connectionStatus === 'reconnecting' ? '#ff9800' : '#f44336',
-                mr: 1
-              }}
-            />
-            {!isMobile && (
-              <Typography variant="body2" sx={{ color: '#b9bbbe' }}>
-                {isConnected ? 'Подключено' : connectionStatus === 'reconnecting' ? 'Переподключение...' : 'Отключено'}
-              </Typography>
-            )}
-          </Box>
-
-          <Box sx={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
-            {!isMobile && (
-              <>
-                <Badge color="success" variant="dot" overlap="circular">
-                  <Avatar sx={{ bgcolor: `hsl(${Math.random() * 360}, 70%, 50%)` }}>
-                    {nickname[0].toUpperCase()}
-                  </Avatar>
-                </Badge>
-                <Typography variant="body1" sx={{ color: '#ffffff', ml: 1 }}>
-                  {nickname} • {role}
-                </Typography>
-              </>
-            )}
-          </Box>
-        </Box>
+          <Header
+            isConnected={isConnected}
+            connectionStatus={connectionStatus}
+            nickname={nickname}
+            role={role}
+            isMobile={isMobile}
+            onMenuClick={() => setDrawerOpen(true)}
+            onLogout={handleLogout}
+          />
         {isMobile && (
           <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
             <Box sx={{ width: 250, height: '100%', bgcolor: '#2b2d31', color: '#ffffff', p: 2 }}>
@@ -346,7 +334,6 @@ function App() {
               <Typography variant="h6" gutterBottom>Каналы</Typography>
               <ErrorBoundary>
               {console.log('Mobile TreeView - Channels:', channels, 'Number of channels:', channels.length)}
-              {console.log('Mobile TreeView - ValidSelectedItems:', validSelectedItems)}
               {console.log('Mobile TreeView - Expanded:', expanded)}
               {console.log('Mobile TreeView - Tree structure check - Server nodeId exists: true (manual), has children:', channels.length > 0)}
               {channels.forEach((ch, idx) => console.log(`Channel ${idx}: id=${ch.id}, name=${ch.name}, type=${ch.type}`))}
@@ -441,7 +428,7 @@ function App() {
             <Typography variant="h6" gutterBottom>Каналы</Typography>
             <ErrorBoundary>
             {console.log('Desktop TreeView - Channels:', channels, 'Number of channels:', channels.length)}
-            {console.log('Desktop TreeView - ValidSelectedItems:', validSelectedItems)}
+            {console.log('Desktop TreeView - ValidSelectedItems:', channels)}
             {console.log('Desktop TreeView - Expanded:', expanded)}
             {console.log('Desktop TreeView - Tree structure check - Server nodeId exists: true (manual), has children:', channels.length > 0)}
             {channels.forEach((ch, idx) => console.log(`Channel ${idx}: id=${ch.id}, name=${ch.name}, type=${ch.type}`))}
@@ -559,20 +546,7 @@ function App() {
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <Paper elevation={3} style={{ height: '90vh', display: 'flex', flexDirection: 'column' }}>
-            <Box flexGrow={1} style={{ overflowY: 'auto', padding: 10 }}>
-              <List>
-                {messages.map((msg, index) => (
-                  <ListItem key={index}>
-                    <Typography variant="body2" color="textSecondary" style={{ marginRight: 10 }}>
-                      {new Date(msg.timestamp).toLocaleTimeString()}
-                    </Typography>
-                    <Typography variant="body1">
-                      <strong>{msg.author}:</strong> {msg.text}
-                    </Typography>
-                  </ListItem>
-                ))}
-              </List>
-            </Box>
+            <MessageList messages={messages} currentRoom={room} />
             <Box style={{ padding: 10 }}>
               <TextField
                 data-testid="message-input"
