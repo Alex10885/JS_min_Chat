@@ -47,6 +47,9 @@ coverage/
 .grunt
 
 # Bower dependency directory
+.jest/cache/
+bower_components
+# Bower dependency directory
 bower_components
 
 # node-waf configuration
