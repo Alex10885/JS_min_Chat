@@ -9,14 +9,16 @@ const userSchema = new mongoose.Schema({
     unique: true,
     trim: true,
     minlength: 3,
-    maxlength: 50
+    maxlength: 50,
+    index: true // Remove duplicate index call below
   },
   email: {
     type: String,
     required: true,
     unique: true,
     lowercase: true,
-    trim: true
+    trim: true,
+    index: true // Remove duplicate index call below
   },
   password: {
     type: String,
@@ -50,10 +52,6 @@ const userSchema = new mongoose.Schema({
     default: null
   }
 });
-
-// Index for performance
-userSchema.index({ nickname: 1 });
-userSchema.index({ email: 1 });
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {

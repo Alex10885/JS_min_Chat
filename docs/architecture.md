@@ -1,17 +1,33 @@
 # Architecture Diagram
 
-## Overview
+```mermaid
+graph TB
+    A[React Frontend] --> B[Nginx Proxy]
+    B --> C[Express Backend]
+    C --> D[MongoDB]
+    C --> E[Redis Cache]
+    F[Socket.IO] --> A
+    F --> C
+    G[Cypress Tests] --> A
+    H[Jest Tests] --> C
 
-The Chat-JS project consists of:
+    subgraph "Deployment Layers"
+        I[Docker Containers]
+        J[GitHub Actions CI/CD]
+        K[Swagger API Docs]
+    end
+```
 
-1. **Frontend**: React application with Material-UI
-2. **Backend**: Node.js/Express server with Socket.IO
-3. **Database**: MongoDB for data storage
-4. **Tests**: Jest for unit tests, Cypress for E2E
+## Component Structure
 
-## Dependencies
+### Backend
+- `server.js`: Main entry point
+- `models/`: Database models
+- `services/`: Business logic
+- `tests/`: Test suites
 
-### Frontend Dependencies: 20+
-### Backend Dependencies: 30+
-
-*(Install Mermaid for visual diagram generation)*
+### Frontend
+- `src/components/`: React components
+- `src/hooks/`: Custom hooks
+- `cypress/`: E2E tests
+- `public/`: Static assets

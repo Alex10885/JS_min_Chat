@@ -31,7 +31,7 @@ describe('Chat App - End-to-End Functional Tests', () => {
 
   it('should load the chat application', () => {
     // Check that the app title is visible
-    cy.contains('Chat Server').should('be.visible');
+    cy.get('h6').contains('Chat Server').should('be.visible');
   });
 
   it('should display chat interface elements', () => {
@@ -40,8 +40,8 @@ describe('Chat App - End-to-End Functional Tests', () => {
 
     // Check that main chat elements are present
     cy.get('[data-testid="VolumeUpIcon"]').should('exist'); // Voice channel icon
-    cy.get('input[type="text"]').should('exist'); // Message input
-    cy.get('button[type="button"]').contains('Отправить').should('be.visible'); // Send button
+    cy.get('[data-testid="message-input"]').should('exist'); // Message input
+    cy.get('[data-testid="send-message-button"]').should('be.visible'); // Send button
   });
 
   it('should handle message input and sending', () => {
@@ -50,15 +50,15 @@ describe('Chat App - End-to-End Functional Tests', () => {
     cy.wait(2000); // Wait for channel switching
 
     // Type a message
-    cy.get('input[type="text"]', { timeout: 10000 }).type('Hello from Cypress E2E test!');
+    cy.get('[data-testid="message-input"]', { timeout: 10000 }).type('Hello from Cypress E2E test!');
     cy.wait(1000);
 
     // Send message
-    cy.get('button[type="button"]').contains('Отправить').click();
+    cy.get('[data-testid="send-message-button"]').click();
     cy.wait(2000); // Wait for message to be sent
 
     // Check that input is cleared
-    cy.get('input[type="text"]').should('have.value', '');
+    cy.get('[data-testid="message-input"]').should('have.value', '');
   });
 
   it('should display channels list', () => {
@@ -76,7 +76,7 @@ describe('Chat App - End-to-End Functional Tests', () => {
     cy.wait(2000); // Wait for channel switching
 
     // Message input should be available
-    cy.get('input[type="text"]', { timeout: 10000 }).should('be.visible');
+    cy.get('[data-testid="message-input"]', { timeout: 10000 }).should('be.visible');
   });
 
   it('should handle channel creation', () => {

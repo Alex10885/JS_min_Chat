@@ -142,20 +142,29 @@ fs.writeFileSync(path.join('docs', 'swagger.json'), JSON.stringify(swaggerSpec, 
         console.log('🔗 Генерация диаграмм архитектуры...');
 
         try {
-            // Установка madge если не установлен
-            execSync('npm list -g madge || npm install -g madge');
+            // Создание папки docs если не существует
+            const docsDir = path.join(this.projectRoot, 'docs');
+            if (!fs.existsSync(docsDir)) {
+                fs.mkdirSync(docsDir, { recursive: true });
+            }
 
-            // Генерация диаграммы зависимостей
-            execSync(`madge --image diagrams/dependency-graph.png --tsv > diagrams/dependency-tree.tsv backend/server.js frontend/src/index.js`);
+            // Генерация диаграммы зависимостей backend с помощью локальной madge
+            execSync(`npx madge ${this.backendDir} --image ${docsDir}/backend-dependency-graph.png --layout dot`);
+
+            // Генерация диаграммы зависимостей frontend с помощью локальной madge
+            execSync(`npx madge ${path.join(this.frontendDir, 'src')} --image ${docsDir}/frontend-dependency-graph.png --layout dot`);
+
+            // Генерация общей диаграммы зависимостей
+            execSync(`npx madge ${this.backendDir} ${path.join(this.frontendDir, 'src')} --image ${docsDir}/full-dependency-graph.png --layout dot`);
 
             // Генерация архитектурной диаграммы (упрощенная Mermaid версия)
             const diagram = this.generateArchitectureDiagram();
-            fs.writeFileSync(path.join(this.projectRoot, 'docs', 'architecture.md'), diagram);
+            fs.writeFileSync(path.join(docsDir, 'architecture.md'), diagram);
 
             console.log('✅ Диаграммы архитектуры сгенерированы');
 
         } catch (error) {
-            console.warn('⚠️  Madge не установлен, пропускаем диаграммы');
+            console.warn('⚠️  Ошибка генерации диаграмм:', error.message);
             const fallbackDiagram = this.generateFallbackDiagram();
             fs.writeFileSync(path.join(this.projectRoot, 'docs', 'architecture.md'), fallbackDiagram);
         }

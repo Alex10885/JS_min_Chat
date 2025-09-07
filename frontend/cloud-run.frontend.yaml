@@ -1,0 +1,101 @@
+# =========================================
+# CHAT-JS FRONTEND CLOUD RUN SERVICE CONFIG
+# =========================================
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: chat-js-frontend
+  labels:
+    app: chat-js
+    component: frontend
+spec:
+  template:
+    metadata:
+      annotations:
+        # Traffic management
+        autoscaling.knative.dev/maxScale: "5"
+        autoscaling.knative.dev/minScale: "1"
+
+        # Static content optimization
+        run.googleapis.com/timeoutSeconds: "30"
+
+        # CPU allocation for static serving
+        run.googleapis.com/cpu-throttling: "false"
+
+        # Environment configuration
+        run.googleapis.com/configmaps: |
+          env-config:projects/${PROJECT_ID}/configmaps/frontend-env
+
+    spec:
+      # Container configuration
+      containers:
+      - image: gcr.io/${PROJECT_ID}/chat-js-frontend:latest
+        ports:
+        - containerPort: 80
+          name: http1
+
+        # Resource limits (lower for static content)
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+
+        # Environment variables for React app
+        env:
+        - name: NODE_ENV
+          value: "production"
+
+        - name: REACT_APP_API_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: frontend-env
+              key: API_BASE_URL
+
+        - name: REACT_APP_WS_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: frontend-env
+              key: WS_BASE_URL
+
+        - name: REACT_APP_CLIENT_URL
+          valueFrom:
+            configMapKeyRef:
+              name: frontend-env
+              key: CLIENT_URL
+
+        # Security headers
+        - name: NGINX_SECURITY_HEADERS_ENABLED
+          value: "true"
+
+        # Health check configuration
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 2
+
+      # Traffic configuration (CDN will handle external routing)
+      traffic:
+      - percent: 100
+        latestRevision: true
+
+  # Public traffic
+  traffic:
+  - percent: 100
+    latestRevision: true

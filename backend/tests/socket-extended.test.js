@@ -253,6 +253,9 @@ describe('Socket.IO Extended Tests - Improved Stability', () => {
           done();
         });
 
+        console.log('Connecting secondDebugger socket with token:', secondToken.substring(0, 20) + '...');
+        console.log('TestUser ID:', testUser._id, 'Status:', testUser.status);
+
         secondSocket.on('connect_error', (error) => {
           done(new Error(`Second socket failed: ${error.message}`));
         });

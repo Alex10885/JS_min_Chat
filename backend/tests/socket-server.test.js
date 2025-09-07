@@ -63,21 +63,29 @@ class SocketTestServer {
   setupSocketIO() {
     this.io.use(async (socket, next) => {
       const token = socket.handshake.auth.token;
+      console.log('Socket.IO auth middleware: received token:', token ? token.substring(0, 20) + '...' : 'null');
 
       if (!token) {
+        console.log('Socket.IO auth middleware: no token provided');
         return next(new Error('Authentication token required'));
       }
 
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        console.log('Socket.IO auth middleware: decoded token:', { id: decoded.id, nickname: decoded.nickname });
         const user = await User.findById(decoded.id);
+        console.log('Socket.IO auth middleware: user found in DB:', user ? { id: user._id, status: user.status, nickname: user.nickname } : 'null');
 
         if (!user) {
+          console.log('Socket.IO auth middleware: ERROR - user not found in DB');
           return next(new Error('User not found or not online'));
         }
 
+        console.log('Socket.IO auth middleware: checking user status:', user.status);
+
         // Check if user is marked as offline during authentication
         if (user.status === 'offline') {
+          console.log('Socket.IO auth middleware: ERROR - user status is offline');
           return next(new Error('User not found or not online'));
         }
 
@@ -87,8 +95,10 @@ class SocketTestServer {
         const newConnectionCount = connectionCount + 1;
         this.userConnections.set(userId, newConnectionCount);
 
+        console.log(`Socket.IO auth middleware: updating user ${userId} to online, connection count: ${newConnectionCount}`);
+
         // Update user status to online during authentication
-        await User.findOneAndUpdate(
+        const updatedUser = await User.findOneAndUpdate(
           { _id: userId },
           {
             $set: {
@@ -99,11 +109,15 @@ class SocketTestServer {
           { new: true, runValidators: true }
         );
 
+        console.log('Socket.IO auth middleware: user updated to:', updatedUser ? { id: updatedUser._id, status: updatedUser.status } : 'null');
+
         socket.userId = decoded.id;
         socket.nickname = decoded.nickname;
         socket.role = decoded.role;
+        console.log('Socket.IO auth middleware: authentication successful for user:', socket.nickname);
         return next();
       } catch (err) {
+        console.log('Socket.IO auth middleware: ERROR during auth:', err.message);
         return next(new Error('Authentication failed'));
       }
     });

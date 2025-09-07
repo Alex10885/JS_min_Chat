@@ -386,6 +386,7 @@ function App() {
               )}
               <Box sx={{ mt: 2 }}>
                 <TextField
+                  data-testid="new-channel-input"
                   fullWidth
                   size="small"
                   placeholder="New Channel Name"
@@ -574,13 +575,14 @@ function App() {
             </Box>
             <Box style={{ padding: 10 }}>
               <TextField
+                data-testid="message-input"
                 fullWidth
                 label="Введите сообщение"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyPress}
               />
-              <Button type="button" variant="contained" color="primary" onClick={() => { console.log('Button clicked'); sendMessage(); }} style={{ marginTop: 10 }}>
+              <Button type="button" data-testid="send-message-button" variant="contained" color="primary" onClick={() => { console.log('Button clicked'); sendMessage(); }} style={{ marginTop: 10 }}>
                 Отправить
               </Button>
             </Box>

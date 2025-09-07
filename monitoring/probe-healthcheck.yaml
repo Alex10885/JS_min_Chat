@@ -1,0 +1,186 @@
+# =====================================
+# GCP MONITORING PROBE CONFIGURATION
+# =====================================
+# Production health checks for Chat-JS
+
+## Uptime Checks for Critical Services
+# Backend Health Check
+- name: chat-js-backend-uptime-check
+  displayName: Chat-JS Backend Uptime Check
+  type: UPTIME_CHECK_CONFIG
+  labels:
+    service: chat-js-backend
+    environment: production
+  uptimeCheckConfig:
+    displayName: Chat-JS Backend Health Check
+    resourceType: UPTIME_URL
+    monitoredResource:
+      type: uptime_url
+      labels:
+        # This will be populated by Cloud Run service URL
+        host: PLACEHOLDER_HOST
+    checkRequestType: GET
+    httpCheck:
+      path: /health
+      port: 443
+      useSsl: true
+      validateSsl: true
+      headers:
+        User-Agent: "GCP-Uptime-Check/1.0"
+    period: 60s
+    timeout: 10s
+    selectedRegions:
+      - REGION1: europe-west1
+    contentMatchers:
+      - matcher: CONTENT_MATCH
+        contentMatchType: CONTENT_MATCHES
+        content: "healthy"
+
+# Frontend Health Check
+- name: chat-js-frontend-uptime-check
+  displayName: Chat-JS Frontend Uptime Check
+  type: UPTIME_CHECK_CONFIG
+  labels:
+    service: chat-js-frontend
+    environment: production
+  uptimeCheckConfig:
+    displayName: Chat-JS Frontend Health Check
+    resourceType: UPTIME_URL
+    monitoredResource:
+      type: uptime_url
+      labels:
+        # This will be populated by Cloud Run service URL
+        host: PLACEHOLDER_HOST
+    checkRequestType: GET
+    httpCheck:
+      path: /health
+      port: 443
+      useSsl: true
+      validateSsl: true
+    period: 60s
+    timeout: 5s
+    selectedRegions:
+      - REGION1: europe-west1
+
+## Alert Policies
+# High Error Rate Alert
+- name: chat-js-backend-error-rate
+  displayName: Backend High Error Rate Alert
+  type: ALERT_POLICY
+  labels:
+    team: platform
+    severity: critical
+  alertPolicy:
+    displayName: Backend Error Rate Critical
+    conditions:
+      - displayName: "Backend HTTP 5xx errors > 5%"
+        conditionThreshold:
+          filter: metric.type="logging.googleapis.com/user/chat-js/error_count" AND
+                  resource.type="cloud_run_revision" AND
+                  resource.labels.service_name="chat-js-backend" AND
+                  metric.labels.status_code>=500
+          aggregations:
+            - alignmentPeriod: 300s
+              crossSeriesReducer: REDUCE_SUM
+              perSeriesAligner: ALIGN_RATE
+          comparison: COMPARISON_GT
+          duration: 300s
+          thresholdValue: 0.05
+          trigger:
+            count: 3
+    alertStrategy:
+      notificationPrompts:
+        - "Backend error rate exceeds 5%. Immediate investigation required."
+    notificationChannels:
+      - projects/${PROJECT_ID}/notificationChannels/YOUR_CHANNEL_ID
+    documentation:
+      content: |
+        **Backend High Error Rate Alert**
+
+        The Chat-JS backend is experiencing high error rates (>5%).
+
+        **Immediate Actions:**
+        1. Check Cloud Logging for error details
+        2. Verify database connectivity
+        3. Check resource utilization (CPU/Memory)
+        4. Review recent deployments
+
+        **Escalation:**
+        If issue persists >15 minutes, escalate to dev-ops team.
+
+# Service Unavailable Alert
+- name: chat-js-service-down
+  displayName: Chat-JS Service Unavailable
+  type: ALERT_POLICY
+  labels:
+    team: platform
+    severity: critical
+  alertPolicy:
+    displayName: Service Unavailable Alert
+    conditions:
+      - displayName: "Uptime check failed"
+        conditionThreshold:
+          filter: metric.type="monitoring.googleapis.com/uptime_check/check_passed" AND
+                  resource.type="uptime_url" AND
+                  resource.labels.check_id=chat-js-backend-uptime-check
+          comparison: COMPARISON_EQ
+          duration: 300s
+          thresholdValue: false
+          trigger:
+            count: 1
+    alertStrategy:
+      notificationPrompts:
+        - "Chat-JS service is unreachable. Critical service down."
+    notificationChannels:
+      - projects/${PROJECT_ID}/notificationChannels/YOUR_CHANNEL_ID
+    documentation:
+      content: |
+        **SCHEDULE PROMPTATION DUE TO UNAVAILABILITY**
+
+        Chat-JS is currently unreachable via health check.
+
+        **Immediate Actions:**
+        1. Check Cloud Run service status: `gcloud run services describe chat-js-backend`
+        2. Check pods container logs
+        3. Verify database connectivity
+        4. Check for recent code deployments
+        5. Execute failover if service >5 minutes down
+
+# High CPU Usage Alert
+- name: chat-js-high-cpu
+  displayName: Chat-JS High CPU Usage
+  type: ALERT_POLICY
+  labels:
+    team: platform
+    severity: warning
+  alertPolicy:
+    displayName: High CPU Usage Alert
+    conditions:
+      - displayName: "CPU usage > 80%"
+        conditionThreshold:
+          filter: metric.type="run.googleapis.com/container/cpu/utilization" AND
+                  resource.type="cloud_run_revision" AND
+                  resource.labels.service_name=~chat-js-.*
+          aggregations:
+            - alignmentPeriod: 300s
+              crossSeriesReducer: REDUCE_MAX
+              perSeriesAligner: ALIGN_MEAN
+          comparison: COMPARISON_GT
+          duration: 300s
+          thresholdValue: 0.8
+          trigger:
+            count: 2
+    alertStrategy:
+      notificationPrompts:
+        - "High CPU usage detected. Monitor for scaling needs."
+    documentation:
+      content: |
+        **High CPU Usage Alert**
+
+        One or more Chat-JS services are experiencing high CPU usage.
+
+        **Investigation Steps:**
+        1. Check metric: `kafka_requests_total`
+        2. Review recent traffic patterns
+        3. Consider manual scaling if usage >90%
+        4. Check for memory leaks or inefficient queries

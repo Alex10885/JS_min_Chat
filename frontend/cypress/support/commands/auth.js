@@ -119,11 +119,17 @@ Cypress.Commands.add('ensureAuthenticated', (userData = null) => {
   cy.window().then((win) => {
     const token = win.localStorage.getItem('chatToken');
     if (token) {
-      // User is already authenticated
+      // User is already authenticated, visit app
+      cy.visit('/', { timeout: 15000 });
       return cy.wrap(true);
     } else {
-      // Need to authenticate
-      return cy.loginAndSetup(user);
+      // Need to authenticate - use improved setup that visits page
+      return cy.loginAndSetup(user).then(() => {
+        // Make sure we're on the main app page
+        cy.url().should('not.include', '/#/auth');
+        cy.contains('Chat Server', { timeout: 10000 }).should('be.visible');
+        return cy.wrap(true);
+      });
     }
   });
 });

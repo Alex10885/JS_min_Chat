@@ -1,0 +1,106 @@
+# ===============================================
+# GCP CLOUD ARMOR PRODUCTION SECURITY POLICY
+# ===============================================
+# Comprehensive WAF and DDoS protection for Chat-JS
+
+apiVersion: networking.gcp.upbound.io/v1beta1
+kind: SecurityPolicy
+metadata:
+  name: chat-js-production-security-policy
+spec:
+  forProvider:
+    name: chat-js-production-security-policy
+    description: "Comprehensive security policy for Chat-JS production environment"
+    type: CLOUD_ARMOR
+
+    # Rule 1: Block common SQL injection attempts
+    rules:
+    - action: deny(403)
+      priority: 100
+      description: "Block SQL injection attempts"
+      match:
+        expr:
+          expression: |
+            has(request.headers['x-request-id']) ||
+            evaluatePreconfiguredWaf('sqli-stable', request.headers, request.path)
+
+    # Rule 2: Block common XSS attacks
+    - action: deny(403)
+      priority: 200
+      description: "Block XSS attacks"
+      match:
+        expr:
+          expression: |
+            evaluatePreconfiguredWaf('xss-stable', request.headers, request.path) ||
+            has(request.headers['script']) ||
+            extractSubstring(request.path, 0, 100).contains('<script')
+
+    # Rule 3: Block path traversal attacks
+    - action: deny(403)
+      priority: 300
+      description: "Block path traversal attacks"
+      match:
+        expr:
+          expression: |
+            evaluatePreconfiguredWaf('linux-lfi-stable', request.headers, request.path) ||
+            request.path.contains('../') ||
+            request.path.contains('..\\')
+
+    # Rule 4: Block suspicious user agents
+    - action: deny(403)
+      priority: 400
+      description: "Block suspicious user agents"
+      match:
+        expr:
+          expression: |
+            lower(request.headers['user-agent']).contains('incorporate') ||
+            lower(request.headers['user-agent']).contains('bot') ||
+            lower(request.headers['user-agent']).contains('crawler') ||
+            request.headers['user-agent'].size() == 0
+
+    # Rule 5: Rate limiting for API routes
+    - action: rate_based_ban
+      priority: 500
+      description: "Rate limiting for API endpoints"
+      match:
+        expr:
+          expression: |
+            request.path.startsWith('/api/')
+      rateLimitOptions:
+        rateLimitThreshold:
+          count: 100
+          intervalSec: 60
+        enforceOnKey: IP
+        banThreshold:
+          count: 500
+          intervalSec: 300
+
+    # Rule 6: Stricter rate limiting for auth endpoints
+    - action: rate_based_ban
+      priority: 600
+      description: "Stricter rate limiting for auth endpoints"
+      match:
+        expr:
+          expression: |
+            request.path.contains('/api/login') ||
+            request.path.contains('/api/register') ||
+            request.path.contains('/api/auth/')
+      rateLimitOptions:
+        rateLimitThreshold:
+          count: 5
+          intervalSec: 300  # 5 requests per 5 minutes
+        enforceOnKey: IP
+        banThreshold:
+          count: 20
+          intervalSec: 3600  # Ban for 1 hour after 20 attempts
+
+    # Rule 7: Allow legitimate requests - lowest priority
+    - action: allow
+      priority: 2147483647  # Max priority allows legitimate traffic
+      description: "Allow all other requests"
+      match:
+        expr:
+          expression: "true"
+
+  providerConfigRef:
+    name: default

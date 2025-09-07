@@ -1,0 +1,151 @@
+# =========================================
+# CHAT-JS BACKEND CLOUD RUN SERVICE CONFIG
+# =========================================
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: chat-js-backend
+  labels:
+    app: chat-js
+    component: backend
+spec:
+  template:
+    metadata:
+      annotations:
+        # Traffic management
+        autoscaling.knative.dev/maxScale: "20"
+        autoscaling.knative.dev/minScale: "1"
+
+        # Request timeout (max 15 minutes)
+        run.googleapis.com/timeoutSeconds: "900"
+
+        # CPU allocation
+        run.googleapis.com/cpu-throttling: "false"
+
+        # Secret manager
+        run.googleapis.com/secrets: |
+          jwt-secret:projects/${PROJECT_ID}/secrets/JWT_SECRET/versions/latest
+          mongodb-uri:projects/${PROJECT_ID}/secrets/MONGODB_URI/versions/latest
+          turn-secret:projects/${PROJECT_ID}/secrets/TURN_SECRET/versions/latest
+
+        # Environment variables
+        run.googleapis.com/configmaps: |
+          env-config:projects/${PROJECT_ID}/configmaps/env-config
+
+    spec:
+      # Timeout settings
+      timeoutSeconds: 900
+
+      # Container configuration
+      containers:
+      - image: gcr.io/${PROJECT_ID}/chat-js-backend:latest
+        ports:
+        - containerPort: 8080
+          name: http1
+
+        # Resource limits
+        resources:
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+          requests:
+            cpu: "1000m"
+            memory: "512Mi"
+
+        # Environment variables
+        env:
+        - name: NODE_ENV
+          value: "production"
+
+        - name: PORT
+          value: "8080"
+
+        - name: LOG_LEVEL
+          value: "info"
+
+        - name: LOG_FORMAT
+          value: "json"
+
+        - name: LOG_STACK_DRIVER
+          value: "true"
+
+        # Secrets from Secret Manager
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: jwt-secret
+              key: latest
+
+        - name: MONGODB_URI
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-uri
+              key: latest
+
+        - name: TURN_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: turn-secret
+              key: latest
+
+        # Static configuration values
+        - name: BCRYPT_SALT_ROUNDS
+          value: "12"
+
+        - name: JWT_EXPIRATION
+          value: "24h"
+
+        - name: TRUST_PROXY
+          value: "true"
+
+        - name: MAX_PAYLOAD_SIZE
+          value: "10mb"
+
+        # Rate limiting (optimized for production)
+        - name: AUTH_RATE_LIMIT_WINDOW_MS
+          value: "900000"
+
+        - name: AUTH_RATE_LIMIT_MAX
+          value: "3"
+
+        - name: API_RATE_LIMIT_WINDOW_MS
+          value: "900000"
+
+        - name: API_RATE_LIMIT_MAX
+          value: "60"
+
+        - name: GENERAL_RATE_LIMIT_WINDOW_MS
+          value: "3600000"
+
+        - name: GENERAL_RATE_LIMIT_MAX
+          value: "500"
+
+        # Health check configuration
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 2
+
+      # Traffic configuration
+      traffic:
+      - percent: 100
+        latestRevision: true
+
+  # Public traffic
+  traffic:
+  - percent: 100
+    latestRevision: true

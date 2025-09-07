@@ -1,0 +1,230 @@
+# =========================================
+# GCP CLOUDBUILD CONFIGURATION
+# =========================================
+# Automated CI/CD pipeline for Chat-JS
+
+steps:
+  # Test backend
+  - name: node:20-alpine
+    id: 'backend-tests'
+    dir: backend
+    entrypoint: 'npm'
+    args: ['ci', '--ignore-scripts']
+    waitFor: ['-']
+
+  - name: node:20-alpine
+    id: 'run-backend-tests'
+    dir: backend
+    entrypoint: 'npm'
+    args: ['test:coverage']
+    env:
+      - 'NODE_ENV=test'
+      - 'MONGODB_URI=$MONGO_URI'
+    waitFor: ['backend-tests']
+
+  # Build backend container
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-backend'
+    dir: .
+    args:
+      - 'build'
+      - '-f'
+      - 'backend/Dockerfile.production'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/chat-js-backend:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/chat-js-backend:latest'
+      - 'backend'
+    waitFor: ['run-backend-tests']
+
+  # Test frontend
+  - name: node:20-alpine
+    id: 'frontend-tests'
+    dir: frontend
+    entrypoint: 'npm'
+    args: ['ci', '--ignore-scripts']
+    waitFor: ['-']
+
+  - name: node:20-alpine
+    id: 'run-frontend-tests'
+    dir: frontend
+    entrypoint: 'npm'
+    args: ['test', '--watchAll=false', '--passWithNoTests']
+    waitFor: ['frontend-tests']
+
+  # Build frontend container
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-frontend'
+    dir: .
+    args:
+      - 'build'
+      - '-f'
+      - 'frontend/Dockerfile.production'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/chat-js-frontend:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/chat-js-frontend:latest'
+      - 'frontend'
+    waitFor: ['run-frontend-tests']
+
+  # Security scanning
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'security-scan-backend'
+    args:
+      - 'run'
+      - '--rm'
+      - '-v'
+      - '/var/run/docker.sock:/var/run/docker.sock'
+      - 'gcr.io/gcp-runtimes/secured-cloud-builders'
+      - '-image'
+      - 'gcr.io/$PROJECT_ID/chat-js-backend:$COMMIT_SHA'
+    waitFor: ['build-backend']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'security-scan-frontend'
+    args:
+      - 'run'
+      - '--rm'
+      - '-v'
+      - '/var/run/docker.sock:/var/run/docker.sock'
+      - 'gcr.io/gcp-runtimes/secured-cloud-builders'
+      - '-image'
+      - 'gcr.io/$PROJECT_ID/chat-js-frontend:$COMMIT_SHA'
+    waitFor: ['build-frontend']
+
+  # Deploy to staging (if staging branch)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-backend-staging'
+    script: |
+      #!/bin/bash
+      gcloud run deploy chat-js-backend-staging \
+        --image gcr.io/$PROJECT_ID/chat-js-backend:$COMMIT_SHA \
+        --platform managed \
+        --region europe-west1 \
+        --service-account chat-js-service@$PROJECT_ID.iam.gserviceaccount.com \
+        --concurrency 80 \
+        --cpu 2 \
+        --memory 2Gi \
+        --max-instances 10 \
+        --min-instances 1 \
+        --port 8080 \
+        --allow-unauthenticated \
+        --set-env-vars="NODE_ENV=staging"
+    waitFor: ['security-scan-backend']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-frontend-staging'
+    script: |
+      #!/bin/bash
+      gcloud run deploy chat-js-frontend-staging \
+        --image gcr.io/$PROJECT_ID/chat-js-frontend:$COMMIT_SHA \
+        --platform managed \
+        --region europe-west1 \
+        --service-account chat-js-service@$PROJECT_ID.iam.gserviceaccount.com \
+        --concurrency 100 \
+        --cpu 0.5 \
+        --memory 512Mi \
+        --max-instances 5 \
+        --min-instances 1 \
+        --port 80 \
+        --allow-unauthenticated \
+        --set-env-vars="NODE_ENV=staging"
+    waitFor: ['security-scan-frontend']
+
+  # Integration tests for staging
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'integration-tests'
+    script: |
+      #!/bin/bash
+      export FRONTEND_URL=$(gcloud run services describe chat-js-frontend-staging \
+        --platform managed \
+        --region europe-west1 \
+        --format "value(status.url)")
+      export BACKEND_URL=$(gcloud run services describe chat-js-backend-staging \
+        --platform managed \
+        --region europe-west1 \
+        --format "value(status.url)")
+
+      echo "Running integration tests against:"
+      echo "Frontend: $FRONTEND_URL"
+      echo "Backend: $BACKEND_URL"
+
+      # Run smoke tests here
+      curl -f --max-time 30 $BACKEND_URL/health
+    waitFor: ['deploy-backend-staging', 'deploy-frontend-staging']
+
+  # Deploy to production (only from main branch)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-backend-prod'
+    script: |
+      #!/bin/bash
+      gcloud run deploy chat-js-backend \
+        --image gcr.io/$PROJECT_ID/chat-js-backend:$COMMIT_SHA \
+        --platform managed \
+        --region europe-west1 \
+        --service-account chat-js-service@$PROJECT_ID.iam.gserviceaccount.com \
+        --concurrency 100 \
+        --cpu 2 \
+        --memory 2Gi \
+        --max-instances 20 \
+        --min-instances 1 \
+        --port 8080 \
+        --allow-unauthenticated \
+        --set-env-vars="NODE_ENV=production" \
+        --no-traff ic \
+        --tag latest
+    waitFor: ['integration-tests']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-frontend-prod'
+    script: |
+      #!/bin/bash
+      gcloud run deploy chat-js-frontend \
+        --image gcr.io/$PROJECT_ID/chat-js-frontend:$COMMIT_SHA \
+        --platform managed \
+        --region europe-west1 \
+        --service-account chat-js-service@$PROJECT_ID.iam.gserviceaccount.com \
+        --concurrency 200 \
+        --cpu 0.5 \
+        --memory 512Mi \
+        --max-instances 5 \
+        --min-instances 1 \
+        --port 80 \
+        --allow-unauthenticated \
+        --set-env-vars="NODE_ENV=production" \
+        --no-tra ff ic \
+        --tag latest
+    waitFor: ['integration-tests']
+
+  # Gradual traffic rollout
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'canary-traffic'
+    script: |
+      #!/bin/bash
+      # 10% traffic to new version for canary testing
+      gcloud run services update-traffic chat-js-backend \
+        --platform managed \
+        --region europe-west1 \
+        --to-revisions=latest=10 \
+        --to-revisions=previous=90
+
+      gcloud run services update-traffic chat-js-frontend \
+        --platform managed \
+        --region europe-west1 \
+        --to-revisions=latest=10 \
+        --to-revisions=previous=90
+    waitFor: ['deploy-backend-prod', 'deploy-frontend-prod']
+
+# Options
+options:
+  machineType: 'N1_HIGHCPU_32'
+  diskSizeGb: 500
+  logging: CLOUD_LOGGING_ONLY
+  substitution_option: 'ALLOW_LOOSE'
+
+# Substitutions
+substitutions:
+  _ENVIRONMENT: production
+
+# Timeout
+timeout: '1800s'

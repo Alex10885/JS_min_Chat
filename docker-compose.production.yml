@@ -1,0 +1,198 @@
+# =====================================
+# CHAT-JS PRODUCTION DOCKER COMPOSE
+# =====================================
+# Production-ready docker-compose with all services optimized for GCP Cloud Run
+
+version: '3.8'
+
+services:
+  # Main Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.production
+      args:
+        - NODE_ENV=production
+    image: chat-js-backend:latest
+    container_name: chat-js-backend-prod
+    environment:
+      # GCP Specific environment
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+      - GCP_REGION=${GCP_REGION}
+
+      # Production Database (MongoDB Atlas)
+      - MONGODB_URI=${MONGODB_URI}
+      - MONGODB_USERNAME=${MONGODB_USERNAME}
+      - MONGODB_PASSWORD=${MONGODB_PASSWORD}
+      - MONGODB_DB_NAME=${MONGODB_DB_NAME}
+      - MONGODB_CONNECTION_POOL_SIZE=${MONGODB_CONNECTION_POOL_SIZE:-10}
+
+      # Authentication & Security
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRATION=24h
+
+      # CORS & Security
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://yourdomain.com}
+      - TRUST_PROXY=${TRUST_PROXY:-true}
+
+      # Application Config
+      - PORT=8080
+      - HOST=0.0.0.0
+      - NODE_ENV=production
+
+      # Email Service
+      - EMAIL_SERVICE=${EMAIL_SERVICE:-gmail}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+      - EMAIL_FROM=${EMAIL_FROM}
+
+      # TURN Server Config
+      - TURN_SECRET=${TURN_SECRET}
+      - TURN_EXTERNAL_IP=${TURN_EXTERNAL_IP}
+
+      # Monitoring & Logging
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_FORMAT=json
+      - LOG_STACK_DRIVER=true
+
+      # Rate Limiting (Production optimized)
+      - AUTH_RATE_LIMIT_WINDOW_MS=900000
+      - AUTH_RATE_LIMIT_MAX=3
+      - API_RATE_LIMIT_WINDOW_MS=900000
+      - API_RATE_LIMIT_MAX=60
+      - GENERAL_RATE_LIMIT_WINDOW_MS=3600000
+      - GENERAL_RATE_LIMIT_MAX=500
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - chat-network
+
+  # Frontend Service (React SPA)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.production
+    image: chat-js-frontend:latest
+    container_name: chat-js-frontend-prod
+    environment:
+      - REACT_APP_API_BASE_URL=${REACT_APP_API_BASE_URL}
+      - REACT_APP_WS_BASE_URL=${REACT_APP_WS_BASE_URL}
+      - REACT_APP_CLIENT_URL=${REACT_APP_CLIENT_URL}
+      - NODE_ENV=production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - chat-network
+
+  # TURN Server for WebRTC (Production optimized)
+  turn-server:
+    image: coturn/coturn:latest
+    container_name: chat-js-turn-server-prod
+    environment:
+      - TURN_SERVER_CONFIG=/etc/coturn/turnserver.conf
+      - TURN_SECRET=${TURN_SECRET}
+      - TURN_EXTERNAL_IP=${TURN_EXTERNAL_IP}
+      - TURN_PORT_MIN=49152
+      - TURN_PORT_MAX=65535
+      - VERBOSE=true
+    volumes:
+      - ./coturn.conf:/etc/coturn/turnserver.conf:ro
+      - turn-logs:/var/log/coturn
+    ports:
+      - "3478:3478"
+      - "5349:5349"
+      # Dynamic ports for WebRTC
+      - "49152-65535:49152-65535/udp"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3478"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - chat-network
+
+  # Redis Cache (Optional - managed service in GCP)
+  redis:
+    image: redis:7-alpine
+    container_name: chat-js-redis-prod
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    volumes:
+      - redis-data:/data
+      - redis-logs:/var/log/redis
+    networks:
+      - chat-network
+    # In production, use Cloud Memorystore Redis instead
+
+  # Database for development/testing (for production use MongoDB Atlas)
+  mongo:
+    image: mongo:7-jammy
+    container_name: chat-js-mongo-prod
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+      - MONGO_INITDB_DATABASE=chatjs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - mongo-data:/data/db
+      - mongo-config:/data/configdb
+      - ./scripts/mongo-init:/docker-entrypoint-initdb.d
+    networks:
+      - chat-network
+    # In production, use MongoDB Atlas instead
+
+  # Cloud SQL Proxy for GCP (production database connectivity)
+  cloudsql-proxy:
+    image: gcr.io/cloudsql-docker/gce-proxy:latest
+    container_name: cloudsql-proxy
+    command:
+      - /cloud_sql_proxy
+      - -instances=${GCP_PROJECT_ID}:${GCP_REGION}:chat-js-prod=tcp:0.0.0.0:5432
+      - -credential_file=/secrets/cloudsql/credentials.json
+    volumes:
+      - ./secrets/cloudsql:/secrets/cloudsql:ro
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - chat-network
+
+volumes:
+  mongo-data:
+  mongo-config:
+  redis-data:
+  redis-logs:
+  turn-logs:
+
+networks:
+  chat-network:
+    driver: bridge
