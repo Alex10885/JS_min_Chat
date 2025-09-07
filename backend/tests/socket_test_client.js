@@ -2,9 +2,9 @@
 require('dotenv').config();
 const io = require('socket.io-client');
 
-console.log('Testing Socket.IO connection to localhost:3003');
+console.log('Testing Socket.IO connection to localhost:3001');
 
-const socket = io('http://localhost:3003', {
+const socket = io('http://localhost:3001', {
   auth: { token: 'some-test-token' }, // Will fail auth but we can see error handling
   transports: ['websocket'], // Force WebSocket
   autoConnect: false,

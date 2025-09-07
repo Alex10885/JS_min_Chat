@@ -600,6 +600,99 @@ app.post('/api/register', authRateLimiter, [
     logger.error('Registration error:', error);
     res.status(500).json({ error: 'Server error during registration' });
   }
+/**
+  * @swagger
+  * /api/login:
+  *   post:
+  *     tags:
+  *       - Authentication
+  *     summary: Login existing user
+  *     description: Authenticates and logs in an existing user with JWT token
+  *     requestBody:
+  *       required: true
+  *       content:
+  *         application/json:
+  *           schema:
+  *             $ref: '#/components/schemas/LoginRequest'
+  *     responses:
+  *       200:
+  *         description: Login successful
+  *         content:
+  *           application/json:
+  *             schema:
+  *               $ref: '#/components/schemas/AuthResponse'
+  *             example:
+  *               token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  *               user:
+  *                 id: "507f1f77bcf86cd799439011"
+  *                 nickname: "john_doe"
+  *                 email: "john@example.com"
+  *                 role: "member"
+  *       400:
+  *         description: Invalid credentials or validation errors
+  *         content:
+  *           application/json:
+  *             schema:
+  *               $ref: '#/components/schemas/ErrorResponse'
+  *             example:
+  *               error: "Invalid credentials"
+  *       500:
+  *         description: Server error
+  */
+app.post('/api/login', [
+  body('identifier').isLength({ min: 1 }).trim(),
+  body('password').isLength({ min: 1 })
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { identifier, password } = req.body;
+
+    // Find user by nickname or email
+    const user = await User.findOne({
+      $or: [{ nickname: identifier }, { email: identifier }]
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid credentials' });
+    }
+
+    // Compare password
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
+      return res.status(400).json({ error: 'Invalid credentials' });
+    }
+
+    // Update user status to online
+    user.status = 'online';
+    await user.save();
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user._id, nickname: user.nickname, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    logger.info(`User logged in: ${user.nickname}`);
+
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        nickname: user.nickname,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    logger.error('Login error:', error);
+    res.status(500).json({ error: 'Server error during login' });
+  }
+});
 });
 
 /**
@@ -663,11 +756,6 @@ app.get('/api/channels', authenticateToken, apiRateLimiter, async (req, res) => 
 
 // 404 handler (must be before global error handler)
 app.use((req, res) => {
-  console.warn('⚠️ Empty 404 handler executed - check route registration order!');
-});
-
-// 404 handler (must be before global error handler)
-app.use((req, res) => {
   console.warn('❌ Final 404 handler executed - route not found!', { method: req.method, url: req.url });
   logger.warn(`404 - ${req.method} ${req.url}`, {
     ip: req.ip,
@@ -719,9 +807,66 @@ io.use(async (socket, next) => {
       return next(new Error('User not found'));
     }
 
-    if (user.status !== 'online') {
-      console.log('❌ Socket authentication failed: User not online');
-      return next(new Error('User account is not active'));
+    // Atomic update user status to online with concurrency handling
+    try {
+      const userId = decoded.userId;
+      const currentTime = new Date();
+
+      const updateResult = await User.findOneAndUpdate(
+        {
+          _id: userId,
+          $or: [
+            { status: { $ne: 'online' } }, // If not online, update
+            { lastActive: { $lt: new Date(currentTime.getTime() - 30000) } } // If online but inactive for 30+ seconds
+          ]
+        },
+        {
+          $set: {
+            status: 'online',
+            lastActive: currentTime
+          }
+        },
+        {
+          new: true, // Return updated document
+          runValidators: true
+        }
+      );
+
+      if (updateResult) {
+        console.log(`🔄 Socket auth: User ${decoded.nickname} status set to online (was: ${updateResult.status})`);
+        logger.info(`User status updated to online via socket auth`, {
+          userId: userId,
+          nickname: decoded.nickname,
+          previousStatus: user.status, // Old status before update
+          socketId: socket.id,
+          timestamp: currentTime
+        });
+      } else {
+        console.log(`✅ Socket auth: User ${decoded.nickname} already online or recently active`);
+        logger.info(`User status unchanged via socket auth`, {
+          userId: userId,
+          nickname: decoded.nickname,
+          currentStatus: user.status,
+          socketId: socket.id,
+          reason: 'already_online_or_recent'
+        });
+      }
+
+      // Override local user object with updated data
+      user.status = updateResult ? updateResult.status : user.status;
+      user.lastActive = updateResult ? updateResult.lastActive : user.lastActive;
+
+    } catch (statusUpdateError) {
+      console.error(`❌ Socket auth: Failed to update user status for ${decoded.nickname}:`, statusUpdateError.message);
+      logger.error(`Status update failed during socket auth`, {
+        userId: decoded.userId,
+        nickname: decoded.nickname,
+        error: statusUpdateError.message,
+        socketId: socket.id
+      });
+
+      // Don't fail auth due to status update error - proceed with current status
+      console.log(`⚠️ Socket auth: Proceeding with current user status despite update failure`);
     }
 
     socket.userId = decoded.userId;
@@ -951,23 +1096,71 @@ io.on('connection', async (socket) => {
   socket.on('private_message', async (data) => {
     if (!socket.room || !data.to || !data.text?.trim()) return;
 
-    try {
-      // Find target user in same room
-      const targetUser = Array.from(onlineUsers.values()).find(
-        u => u.nickname === data.to && u.room === socket.room
-      );
+    const trimmedText = data.text.trim();
+    const targetNickname = data.to.trim();
 
-      if (!targetUser) {
-        socket.emit('error', { message: 'User not online in this channel.' });
+    try {
+      logger.debug(`Private message attempt from ${socket.nickname} to ${targetNickname}`, {
+        senderRoom: socket.room,
+        senderSocketId: socket.id,
+        userId: socket.userId
+      });
+
+      // Validate target nickname format
+      if (targetNickname.length === 0 || targetNickname.length > 50) {
+        socket.emit('error', {
+          message: 'Invalid target user nickname',
+          code: 'INVALID_TARGET_NICKNAME'
+        });
         return;
       }
 
+      // Prevent self-messaging
+      if (targetNickname === socket.nickname) {
+        socket.emit('error', {
+          message: 'Cannot send private message to yourself',
+          code: 'SELF_MESSAGE_NOT_ALLOWED'
+        });
+        return;
+      }
+
+      // Find target user in same room with detailed logging
+      const targetUser = Array.from(onlineUsers.values()).find(
+        u => u.nickname === targetNickname && u.room === socket.room
+      );
+
+      logger.debug(`Private message target search result for ${targetNickname}`, {
+        targetFound: !!targetUser,
+        targetRoom: targetUser?.room,
+        senderRoom: socket.room,
+        onlineUsersInRoom: Array.from(onlineUsers.values())
+          .filter(u => u.room === socket.room)
+          .map(u => ({ nickname: u.nickname, room: u.room }))
+      });
+
+      if (!targetUser) {
+        // Enhanced error message with more context
+        const onlineUsersInSenderRoom = Array.from(onlineUsers.values())
+          .filter(u => u.room === socket.room)
+          .map(u => u.nickname);
+
+        socket.emit('error', {
+          message: `User '${targetNickname}' is not available in this channel. Available users: ${onlineUsersInSenderRoom.join(', ') || 'none'}`,
+          code: 'TARGET_USER_NOT_IN_ROOM',
+          target: targetNickname,
+          availableUsers: onlineUsersInSenderRoom,
+          senderRoom: socket.room
+        });
+        return;
+      }
+
+      // Create message object
       const message = new Message({
         author: socket.nickname,
         channel: socket.room,
-        text: data.text.trim(),
+        text: trimmedText,
         type: 'private',
-        target: data.to
+        target: targetNickname
       });
       await message.save();
 
@@ -981,20 +1174,61 @@ io.on('connection', async (socket) => {
         status: 'delivered'
       };
 
-      // Send to target user
+      // Send to target user with error handling
       const targetSocketId = Array.from(onlineUsers.keys()).find(
-        id => onlineUsers.get(id).nickname === data.to
+        id => onlineUsers.get(id).nickname === targetNickname
       );
+
       if (targetSocketId) {
         io.to(targetSocketId).emit('private_message', messageData);
+        logger.debug(`Private message sent to target ${targetNickname}`, {
+          targetSocketId: targetSocketId,
+          sender: socket.nickname,
+          room: socket.room,
+          messageId: message._id
+        });
+      } else {
+        logger.warn(`Target user ${targetNickname} found in onlineUsers but socket ID not found`, {
+          targetNickname,
+          room: socket.room,
+          onlineUsersCount: onlineUsers.size,
+          messageId: message._id
+        });
+        // Message still saved to database for later delivery if user reconnects
       }
 
-      // Send copy to sender (without target for privacy)
-      socket.emit('private_message', { ...messageData, target: null });
+      // Send confirmation to sender (without target for privacy)
+      socket.emit('private_message', {
+        author: message.author,
+        room: message.room,
+        text: message.text,
+        timestamp: message.timestamp,
+        type: message.type,
+        target: null, // Hide target from sender's confirmation
+        status: 'sent'
+      });
+
+      logger.info(`Private message sent successfully`, {
+        sender: socket.nickname,
+        target: targetNickname,
+        room: socket.room,
+        messageId: message._id,
+        messageLength: trimmedText.length
+      });
 
     } catch (error) {
-      logger.error('Error sending private message:', error);
-      socket.emit('error', { message: 'Failed to send private message' });
+      logger.error('Error sending private message:', {
+        error: error.message,
+        sender: socket.nickname,
+        target: data.to,
+        room: socket.room,
+        userId: socket.userId,
+        stack: error.stack
+      });
+      socket.emit('error', {
+        message: 'Failed to send private message',
+        code: 'PRIVATE_MESSAGE_FAILED'
+      });
     }
   });
 

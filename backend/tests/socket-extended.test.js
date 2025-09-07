@@ -43,7 +43,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
 
   describe('Authentication Edge Cases', () => {
     test('should reject invalid JWT token', (done) => {
-      const invalidSocket = io(`http://localhost:${PORT}`, {
+      const invalidSocket = io(`http://localhost:${serverPort}`, {
         auth: { token: 'invalid-token' }
       });
 
@@ -55,7 +55,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
     });
 
     test('should reject connection without token', (done) => {
-      const noTokenSocket = io(`http://localhost:${PORT}`);
+      const noTokenSocket = io(`http://localhost:${serverPort}`);
 
       noTokenSocket.on('connect_error', (error) => {
         expect(error.message).toContain('Authentication');
@@ -67,7 +67,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
 
   describe('Disconnection Handling', () => {
     test('should handle user disconnect gracefully', (done) => {
-      const socket = io(`http://localhost:${PORT}`, {
+      const socket = io(`http://localhost:${serverPort}`, {
         auth: { token: testToken }
       });
 
@@ -83,7 +83,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
       let clientSocket;
       let listenerClient;
 
-      clientSocket = io(`http://localhost:${PORT}`, {
+      clientSocket = io(`http://localhost:${serverPort}`, {
         auth: { token: testToken }
       });
 
@@ -91,7 +91,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
         clientSocket.emit('join_room', { room: 'general' });
 
         clientSocket.on('online_users', () => {
-          listenerClient = io(`http://localhost:${PORT}`, {
+          listenerClient = io(`http://localhost:${serverPort}`, {
             auth: { token: testToken }
           });
 
@@ -124,7 +124,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
     let secondSocket;
 
     beforeEach((done) => {
-      clientSocket = io(`http://localhost:${PORT}`, {
+      clientSocket = io(`http://localhost:${serverPort}`, {
         auth: { token: testToken }
       });
 
@@ -141,7 +141,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
           { expiresIn: '24h' }
         );
 
-        secondSocket = io(`http://localhost:${PORT}`, {
+        secondSocket = io(`http://localhost:${serverPort}`, {
           auth: { token: secondToken }
         });
 
@@ -205,7 +205,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
 
     test('should handle history request without room', (done) => {
       // Create new socket without joining room
-      const newSocket = io(`http://localhost:${PORT}`, {
+      const newSocket = io(`http://localhost:${serverPort}`, {
         auth: { token: testToken }
       });
 
@@ -238,7 +238,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
           { expiresIn: '24h' }
         );
 
-        secondSocket = io(`http://localhost:${PORT}`, {
+        secondSocket = io(`http://localhost:${serverPort}`, {
           auth: { token: secondToken }
         });
 
@@ -256,7 +256,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
           { expiresIn: '24h' }
         );
 
-        thirdSocket = io(`http://localhost:${PORT}`, {
+        thirdSocket = io(`http://localhost:${serverPort}`, {
           auth: { token: thirdToken }
         });
 
@@ -352,7 +352,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
       const totalTests = invalidRooms.length;
 
       invalidRooms.forEach((invalidRoom) => {
-        const testSocket = io(`http://localhost:${PORT}`, {
+        const testSocket = io(`http://localhost:${serverPort}`, {
           auth: { token: testToken }
         });
 
@@ -398,7 +398,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
         if (disconnectCount === 1) {
           // First disconnect, now reconnect
           setTimeout(() => {
-            const newSocket = io(`http://localhost:${PORT}`, {
+            const newSocket = io(`http://localhost:${serverPort}`, {
               auth: { token: testToken }
             });
             clientSocket = newSocket;
@@ -415,7 +415,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
       const totalSockets = 3;
 
       for (let i = 0; i < totalSockets; i++) {
-        const socket = io(`http://localhost:${PORT}`, {
+        const socket = io(`http://localhost:${serverPort}`, {
           auth: { token: testToken }
         });
 
@@ -437,7 +437,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
     let voiceClientSocket;
 
     beforeEach((done) => {
-      voiceClientSocket = io(`http://localhost:${PORT}`, {
+      voiceClientSocket = io(`http://localhost:${serverPort}`, {
         auth: { token: testToken }
       });
 
@@ -490,7 +490,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
             { expiresIn: '24h' }
           );
 
-          secondSocket = io(`http://localhost:${PORT}`, {
+          secondSocket = io(`http://localhost:${serverPort}`, {
             auth: { token: secondToken }
           });
 
@@ -525,7 +525,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
           { expiresIn: '24h' }
         );
 
-        signallerSocket = io(`http://localhost:${PORT}`, {
+        signallerSocket = io(`http://localhost:${serverPort}`, {
           auth: { token: signallerToken }
         });
 
@@ -543,7 +543,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
               { expiresIn: '24h' }
             );
 
-            receiverSocket = io(`http://localhost:${PORT}`, {
+            receiverSocket = io(`http://localhost:${serverPort}`, {
               auth: { token: receiverToken }
             });
 
@@ -596,7 +596,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
           { expiresIn: '24h' }
         );
 
-        iceSignaller = io(`http://localhost:${PORT}`, {
+        iceSignaller = io(`http://localhost:${serverPort}`, {
           auth: { token: iceToken1 }
         });
 
@@ -614,7 +614,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
               { expiresIn: '24h' }
             );
 
-            iceReceiver = io(`http://localhost:${PORT}`, {
+            iceReceiver = io(`http://localhost:${serverPort}`, {
               auth: { token: iceToken2 }
             });
 
@@ -737,7 +737,7 @@ describe('Socket.IO Extended Tests - Fixed', () => {
         if (reconnectCount === 1) {
           // First disconnect, now reconnect
           setTimeout(() => {
-            const newSocket = io(`http://localhost:${PORT}`, {
+            const newSocket = io(`http://localhost:${serverPort}`, {
               auth: { token: testToken }
             });
             clientSocket = newSocket;
