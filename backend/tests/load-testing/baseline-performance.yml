@@ -1,0 +1,104 @@
+# Performance Baseline Testing Configuration
+(config:
+  target: 'http://localhost:3001'
+  http:
+    timeout: 10
+  phases:
+    # Warmup phase
+    - duration: 30
+      arrivalRate: 2
+      name: 'Warmup'
+    # Baseline measurement phase
+    - duration: 60
+      arrivalRate: 5
+      name: 'Baseline measurement'
+  defaults:
+    headers:
+      Content-Type: 'application/json'
+  processor: './load-test/processor.js'
+  plugins:
+    metrics-by-endpoint: {}
+  ensure:
+    maxErrorRate: 5
+    maxResponseTime: 3000)
+
+scenarios:
+  - name: 'Baseline authentication performance'
+    weight: 25
+    flow:
+      - function: 'setUserAgent'
+      - post:
+          url: '/api/login'
+          json:
+            identifier: 'performance_test_user'
+            password: 'testpass123'
+          capture:
+            json: $.token
+            as: 'token'
+          expect:
+            - statusCode: 200
+            - hasProperty: token
+      - function: 'checkResponseTime'
+
+  - name: 'Baseline channel access performance'
+    weight: 25
+    flow:
+      - function: 'setUserAgent'
+      - post:
+          url: '/api/login'
+          json:
+            identifier: 'performance_test_user'
+            password: 'testpass123'
+          capture:
+            json: $.token
+            as: 'token'
+      - get:
+          url: '/api/channels'
+          headers:
+            Authorization: 'Bearer {{ token }}'
+          expect:
+            - statusCode: 200
+            - hasProperty: []
+      - function: 'checkResponseTime'
+
+  - name: 'Baseline health check performance'
+    weight: 20
+    flow:
+      - function: 'setUserAgent'
+      - get:
+          url: '/health'
+          expect:
+            - statusCode: 200
+            - hasProperty: status
+            - hasProperty: uptime
+            - hasProperty: timestamp
+      - function: 'checkResponseTime'
+
+  - name: 'Baseline error handling performance'
+    weight: 15
+    flow:
+      - function: 'setUserAgent'
+      - get:
+          url: '/api/nonexistent'
+          expect:
+            - statusCode: 404
+      - post:
+          url: '/api/login'
+          json:
+            identifier: ''
+            password: ''
+          expect:
+            - statusCode: 400
+      - function: 'checkResponseTime'
+
+  - name: 'Baseline rate limiting performance'
+    weight: 15
+    flow:
+      - function: 'setUserAgent'
+      - loop:
+          - get:
+              url: '/health'
+              expect:
+                - statusCode: [200, 429]
+        count: 10
+      - function: 'countRateLimits'

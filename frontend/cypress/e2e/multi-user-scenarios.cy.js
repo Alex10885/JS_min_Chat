@@ -1,10 +1,7 @@
 describe('Chat App - Multi-User Scenarios', () => {
-  beforeEach(() => {
-    cy.window().then((win) => {
-      win.localStorage.clear();
-    });
-    cy.visit('/');
-  });
+   beforeEach(() => {
+     cy.ensureAuthenticated();
+   });
 
   it('should handle multiple channel interactions', () => {
     // Create multiple channels
@@ -78,12 +75,9 @@ describe('Chat App - Multi-User Scenarios', () => {
 });
 
 describe('Chat App - Voice Channels Advanced', () => {
-  beforeEach(() => {
-    cy.window().then((win) => {
-      win.localStorage.clear();
-    });
-    cy.visit('/');
-  });
+   beforeEach(() => {
+     cy.ensureAuthenticated();
+   });
 
   it('should handle voice channel creation workflow', () => {
     // Create voice channel
@@ -131,11 +125,8 @@ describe('Chat App - Voice Channels Advanced', () => {
 });
 
 describe('Chat App - Data Persistence and Recovery', () => {
-  it('should maintain channel list across reloads', () => {
-    cy.window().then((win) => {
-      win.localStorage.clear();
-    });
-    cy.visit('/');
+   it('should maintain channel list across reloads', () => {
+     cy.ensureAuthenticated();
 
     // Create channel
     cy.get('input[placeholder="New Channel Name"]').first().type('Persistence Test');
@@ -149,10 +140,7 @@ describe('Chat App - Data Persistence and Recovery', () => {
   });
 
   it('should handle connection recovery after reload', () => {
-    cy.window().then((win) => {
-      win.localStorage.clear();
-    });
-    cy.visit('/');
+    cy.ensureAuthenticated();
 
     // Wait for initial connection
     cy.contains(/Подключено|Переподключение/).should('be.visible');
@@ -166,12 +154,9 @@ describe('Chat App - Data Persistence and Recovery', () => {
 });
 
 describe('Chat App - Accessibility and Keyboard Navigation', () => {
-  beforeEach(() => {
-    cy.window().then((win) => {
-      win.localStorage.clear();
-    });
-    cy.visit('/');
-  });
+   beforeEach(() => {
+     cy.ensureAuthenticated();
+   });
 
   it('should support keyboard navigation for message sending', () => {
     // Join channel
@@ -209,11 +194,8 @@ describe('Chat App - Accessibility and Keyboard Navigation', () => {
 });
 
 describe('Chat App - Load and Performance', () => {
-  it('should handle rapid channel creation', () => {
-    cy.window().then((win) => {
-      win.localStorage.clear();
-    });
-    cy.visit('/');
+   it('should handle rapid channel creation', () => {
+     cy.ensureAuthenticated();
 
     // Create channels rapidly
     for (let i = 0; i < 5; i++) {
@@ -232,10 +214,7 @@ describe('Chat App - Load and Performance', () => {
   });
 
   it('should handle large channel names', () => {
-    cy.window().then((win) => {
-      win.localStorage.clear();
-    });
-    cy.visit('/');
+    cy.ensureAuthenticated();
 
     // Test with very long channel name
     const longName = 'A'.repeat(50);
@@ -248,10 +227,7 @@ describe('Chat App - Load and Performance', () => {
   });
 
   it('should handle special characters in channel names', () => {
-    cy.window().then((win) => {
-      win.localStorage.clear();
-    });
-    cy.visit('/');
+    cy.ensureAuthenticated();
 
     const specialName = 'Test_!@#$%^&*()_+{}|:<>?[]\\;\'",./';
     cy.get('input[placeholder="New Channel Name"]').first()

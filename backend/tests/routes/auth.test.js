@@ -1,6 +1,5 @@
 const request = require('supertest');
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const { body, validationResult } = require('express-validator');
 
@@ -9,8 +8,9 @@ const User = require('../../models/User');
 const Message = require('../../models/Message');
 const Channel = require('../../models/Channel');
 
-// Import DB connection
+// Import DB connection and test helpers
 const { connectDB, closeDB } = require('../../db/connection');
+const { UserTestHelper, HTTPTestHelper, DatabaseTestHelper } = require('../shared/testHelpers');
 
 // Create test app
 const app = express();
@@ -154,13 +154,23 @@ app.post('/channels', [
 });
 
 describe('Authentication Routes', () => {
-  beforeAll(async () => {
-    await connectDB();
-  });
+   let userHelper;
+   let httpHelper;
 
-  afterAll(async () => {
-    await closeDB();
-  });
+   beforeAll(async () => {
+     await connectDB();
+     userHelper = new UserTestHelper();
+     httpHelper = new HTTPTestHelper(app);
+   });
+
+   afterAll(async () => {
+     await httpHelper.cleanup();
+     await closeDB();
+   });
+
+   afterEach(async () => {
+     await DatabaseTestHelper.cleanupCollections(['users']);
+   });
 
   describe('POST /register', () => {
     it('should register a new user successfully', async () => {

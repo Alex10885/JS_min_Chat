@@ -352,10 +352,22 @@ class SocketTestServer {
   }
 
   async start() {
+    console.log(`Starting socket server on port ${this.port}...`);
     return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Server startup timeout after 10 seconds'));
+      }, 10000);
+
       this.server.listen(this.port, (err) => {
-        if (err) reject(err);
-        else resolve(this.server.address().port);
+        clearTimeout(timeout);
+        if (err) {
+          console.error('Failed to start socket server:', err.message);
+          reject(err);
+        } else {
+          const assignedPort = this.server.address().port;
+          console.log(`Socket server successfully started on port ${assignedPort}`);
+          resolve(assignedPort);
+        }
       });
     });
   }

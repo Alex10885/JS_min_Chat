@@ -57,6 +57,7 @@ mockUseSocket.default.mockReturnValue({
   socket: mockSocket,
   isConnected: true,
   connectionStatus: 'connected',
+  reconnect: jest.fn(),
 });
 
 mockUseWebRTC.default.mockReturnValue({

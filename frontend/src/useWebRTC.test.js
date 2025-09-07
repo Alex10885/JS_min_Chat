@@ -1,37 +1,21 @@
 import { renderHook, act } from '@testing-library/react';
 import useWebRTC from './useWebRTC';
+import {
+  createWebRTCMocks,
+  createSocketMocks,
+  mockConsole,
+  MockEventEmitter
+} from './__tests__/mocks';
 
-// Mock WebRTC APIs
-global.navigator.mediaDevices = {
-  getUserMedia: jest.fn(),
-};
+// Setup all mocks
+const { RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, navigator: mockNavigator } = createWebRTCMocks();
+const { socket: mockSocket } = createSocketMocks();
 
-// Mock RTCPeerConnection with complete interface
-global.RTCPeerConnection = jest.fn().mockImplementation(() => ({
-  createOffer: jest.fn().mockResolvedValue({ type: 'offer', sdp: 'mock-sdp' }),
-  createAnswer: jest.fn().mockResolvedValue({ type: 'answer', sdp: 'mock-answer' }),
-  setLocalDescription: jest.fn().mockResolvedValue(),
-  setRemoteDescription: jest.fn().mockResolvedValue(),
-  addIceCandidate: jest.fn().mockResolvedValue(),
-  addTrack: jest.fn(),
-  close: jest.fn(),
-  connectionState: 'connecting',
-  onicecandidate: null,
-  ontrack: null,
-  onconnectionstatechange: null,
-}));
-
-// Mock RTCIceCandidate and RTCSessionDescription
-global.RTCIceCandidate = jest.fn();
-global.RTCSessionDescription = jest.fn();
-
-// Mock Socket.IO
-const mockSocket = {
-  on: jest.fn(),
-  off: jest.fn(),
-  emit: jest.fn(),
-  connected: true,
-};
+// Apply global mocks
+global.RTCPeerConnection = RTCPeerConnection;
+global.RTCIceCandidate = RTCIceCandidate;
+global.RTCSessionDescription = RTCSessionDescription;
+Object.assign(global.navigator.mediaDevices, mockNavigator.mediaDevices);
 
 const mockStream = {
   getTracks: jest.fn(() => [
@@ -39,23 +23,29 @@ const mockStream = {
     { stop: jest.fn(), enabled: true }
   ]),
   getAudioTracks: jest.fn(() => [{ enabled: true }]),
+  getVideoTracks: jest.fn(() => []),
 };
 
 describe('useWebRTC', () => {
   let mockGetUserMedia;
+  let consoleSpy;
 
   beforeEach(() => {
     jest.clearAllMocks();
 
     mockGetUserMedia = jest.fn().mockResolvedValue(mockStream);
-    navigator.mediaDevices.getUserMedia = mockGetUserMedia;
+    global.navigator.mediaDevices.getUserMedia = mockGetUserMedia;
 
     // Reset RTCPeerConnection mock
     RTCPeerConnection.mockClear();
+
+    // Mock console.error for cleaner test output
+    consoleSpy = mockConsole.mockError();
   });
 
   afterEach(() => {
     jest.restoreAllMocks();
+    consoleSpy?.mockRestore();
   });
 
   describe('Hook Initialization', () => {
@@ -102,11 +92,9 @@ describe('useWebRTC', () => {
 
     test('should handle getUserMedia error', async () => {
       const error = new Error('Permission denied');
-      navigator.mediaDevices.getUserMedia.mockRejectedValue(error);
+      global.global.navigator.mediaDevices.getUserMedia.mockRejectedValue(error);
 
       const { result } = renderHook(() => useWebRTC(mockSocket, null));
-
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       await act(async () => {
         try {
@@ -116,9 +104,7 @@ describe('useWebRTC', () => {
         }
       });
 
-      expect(consoleSpy).toHaveBeenCalledWith('Failed to join voice channel:', error);
-
-      consoleSpy.mockRestore();
+      expect(console.error).toHaveBeenCalledWith('Failed to join voice channel:', error);
     });
   });
 
@@ -200,7 +186,7 @@ describe('useWebRTC', () => {
         getAudioTracks: jest.fn(() => []),
       };
 
-      navigator.mediaDevices.getUserMedia.mockResolvedValue(noAudioStream);
+      global.navigator.mediaDevices.getUserMedia.mockResolvedValue(noAudioStream);
 
       const { result } = renderHook(() => useWebRTC(mockSocket, null));
 
@@ -474,7 +460,6 @@ describe('useWebRTC', () => {
     });
 
     test('should handle WebRTC errors gracefully', async () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
       const { result } = renderHook(() => useWebRTC(mockSocket, 'voice-error'));
       const eventHandlers = {};
 
@@ -507,8 +492,7 @@ describe('useWebRTC', () => {
         }
       });
 
-      expect(consoleSpy).toHaveBeenCalledWith('Error handling voice offer:', expect.any(Error));
-      consoleSpy.mockRestore();
+      expect(console.error).toHaveBeenCalledWith('Error handling voice offer:', expect.any(Error));
     });
   });
 

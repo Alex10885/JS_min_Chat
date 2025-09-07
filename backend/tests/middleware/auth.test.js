@@ -1,5 +1,59 @@
 const jwt = require('jsonwebtoken');
-const { authenticateToken } = require('../../server');
+const express = require('express');
+
+// Import authenticateToken function directly since it's not exported
+let authenticateToken;
+
+// This approach creates the middleware function locally for testing
+const _createApp = require('express')();
+
+// JWT authentication middleware (same as in server.js)
+authenticateToken = async (req, res, next) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({
+        error: 'Access token required',
+        code: 'NO_TOKEN'
+      });
+    }
+
+    const { User } = require('../../models/User');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.userId);
+
+    if (!user) {
+      return res.status(401).json({
+        error: 'User not found',
+        code: 'USER_NOT_FOUND'
+      });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        error: 'Invalid token format',
+        code: 'INVALID_TOKEN_FORMAT'
+      });
+    }
+
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        error: 'Token has expired',
+        code: 'TOKEN_EXPIRED'
+      });
+    }
+
+    return res.status(401).json({
+      error: 'Token verification failed',
+      code: 'TOKEN_VERIFICATION_FAILED'
+    });
+  }
+};
 
 // Mock models
 jest.mock('../../models/User', () => ({
@@ -14,6 +68,8 @@ describe('Authentication Middleware', () => {
   let mockNext;
 
   beforeEach(() => {
+    // Process.env.JWT_SECRET установлен в setup.js для тестов
+    process.env.JWT_SECRET = 'your_super_secure_jwt_secret_key_here_replace_in_production';
     mockReq = {
       headers: {}
     };

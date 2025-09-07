@@ -1,0 +1,126 @@
+name: Test and Deploy
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:8.0
+        ports:
+          - 27017:27017
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Cache backend node modules
+      uses: actions/cache@v3
+      with:
+        path: backend/node_modules
+        key: backend-${{ runner.os }}-node-${{ hashFiles('backend/package-lock.json') }}
+        restore-keys: |
+          backend-${{ runner.os }}-node-
+
+    - name: Install backend dependencies
+      run: |
+        cd backend
+        npm ci --prefer-offline
+
+    - name: Run backend tests (parallel)
+      run: |
+        cd backend
+        npm run test:parallel
+
+    - name: Generate backend coverage report
+      run: |
+        cd backend
+        npm run test:coverage
+
+    - name: Upload backend coverage
+      uses: codecov/codecov-action@v3
+      with:
+        directory: ./backend/coverage
+        flags: backend
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Cache frontend node modules
+      uses: actions/cache@v3
+      with:
+        path: frontend/node_modules
+        key: frontend-${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
+        restore-keys: |
+          frontend-${{ runner.os }}-node-
+
+    - name: Cache Cypress binary
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/Cypress
+        key: cypress-${{ hashFiles('frontend/package-lock.json') }}
+        restore-keys: |
+          cypress-
+
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci --prefer-offline
+
+    - name: Run frontend unit tests
+      run: |
+        cd frontend
+        npm run test:coverage
+
+    - name: Start backend for e2e tests
+      run: |
+        cd backend
+        npm ci --prefer-offline
+        npm start &
+        sleep 30
+
+    - name: Run critical e2e tests
+      run: |
+        cd frontend
+        npm run e2e:critical -- --record --parallel
+
+    - name: Run important e2e tests
+      run: |
+        cd frontend
+        npm run e2e:important -- --record --parallel
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+
+  deploy:
+    needs: [backend-tests, frontend-tests]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Deploy to production
+      run: |
+        echo "Deploying to production..."
+        # Add your deployment steps here

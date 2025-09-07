@@ -13,10 +13,22 @@ let serverPort;
 
 describe('Socket.IO Extended Tests - Fixed', () => {
   beforeAll(async () => {
-    await connectDB();
+    // Ensure JWT_SECRET is set for authentication
+    if (!process.env.JWT_SECRET) {
+      console.log('Setting JWT_SECRET for tests...');
+      process.env.JWT_SECRET = 'test-jwt-secret-key-for-socket-tests';
+    } else {
+      console.log('JWT_SECRET already set');
+    }
 
+    console.log('Starting database connection...');
+    await connectDB();
+    console.log('Database connected successfully');
+
+    console.log('Starting test server...');
     testServer = new SocketTestServer();
     serverPort = await testServer.start();
+    console.log('Test server started on port:', serverPort);
 
     testUser = new User({
       nickname: 'extendedSocketTestUser',

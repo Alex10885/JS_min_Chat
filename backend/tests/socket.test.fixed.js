@@ -7,6 +7,81 @@ const Message = require('../models/Message');
 const Channel = require('../models/Channel');
 const SocketTestServer = require('./socket-server.test');
 
+// Utility function to wait for socket event with timeout
+function waitForEvent(socket, eventName, timeout = 5000) {
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+
+    const cleanup = () => {
+      socket.off(eventName, eventHandler);
+      clearTimeout(timeoutId);
+    };
+
+    const eventHandler = (data) => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        resolve(data);
+      }
+    };
+
+    const timeoutId = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        reject(new Error(`Timeout waiting for event: ${eventName}`));
+      }
+    }, timeout);
+
+    socket.on(eventName, eventHandler);
+  });
+}
+
+// Utility function to wait for socket connection
+function waitForSocketConnection(socket, timeout = 5000) {
+  return new Promise((resolve, reject) => {
+    if (socket.connected) {
+      resolve(socket);
+      return;
+    }
+
+    let resolved = false;
+
+    const cleanup = () => {
+      socket.off('connect', connectHandler);
+      socket.off('connect_error', errorHandler);
+      clearTimeout(timeoutId);
+    };
+
+    const connectHandler = () => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        resolve(socket);
+      }
+    };
+
+    const errorHandler = (error) => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        reject(new Error(`Socket connection failed: ${error.message}`));
+      }
+    };
+
+    const timeoutId = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        reject(new Error(`Socket connection timeout after ${timeout}ms`));
+      }
+    }, timeout);
+
+    socket.on('connect', connectHandler);
+    socket.on('connect_error', errorHandler);
+  });
+}
+
 let testServer;
 let testUser;
 let testToken;
@@ -63,20 +138,14 @@ describe('Socket.IO Integration Tests - Fixed', () => {
     await closeDB();
   });
 
-  beforeEach((done) => {
+  beforeEach(async () => {
     clientSocket = io(`http://localhost:${serverPort}`, {
       auth: { token: testToken },
       forceNew: true
     });
 
-    clientSocket.on('connect', () => {
-      done();
-    });
-
-    clientSocket.on('connect_error', (error) => {
-      console.error('Connection error:', error.message);
-      done.fail(new Error(`Failed to connect: ${error.message}`));
-    });
+    // Wait for connection to be established
+    await waitForSocketConnection(clientSocket);
   });
 
   afterEach(() => {
@@ -86,139 +155,114 @@ describe('Socket.IO Integration Tests - Fixed', () => {
   });
 
   describe('Authentication', () => {
-    test('should connect with valid token', (done) => {
+    test('should connect with valid token', () => {
       expect(clientSocket.connected).toBe(true);
       expect(clientSocket.id).toBeDefined();
-      done();
     });
 
-    test('should receive user data on connection', (done) => {
+    test('should receive user data on connection', async () => {
       const newSocket = io(`http://localhost:${serverPort}`, {
         auth: { token: testToken },
         forceNew: true
       });
 
-      newSocket.on('connect', () => {
-        expect(newSocket.id).toBeDefined();
-        newSocket.disconnect();
-        done();
-      });
-
-      newSocket.on('connect_error', (error) => {
-        done.fail(new Error(`Connection failed: ${error.message}`));
-      });
+      await waitForSocketConnection(newSocket);
+      expect(newSocket.id).toBeDefined();
+      newSocket.disconnect();
     });
   });
 
   describe('Channel Joining', () => {
-    test('should join text channel', (done) => {
+    test('should join text channel', async () => {
       clientSocket.emit('join_room', { room: 'general' });
 
-      clientSocket.on('message', (data) => {
-        if (data.author === 'System' && data.text.includes('joined the channel')) {
-          expect(data.author).toBe('System');
-          expect(data.room || data.channel).toBe('general');
-          done();
-        }
-      });
+      const data = await waitForEvent(clientSocket, 'message', 2000);
+      if (data.author === 'System' && data.text.includes('joined the channel')) {
+        expect(data.author).toBe('System');
+        expect(data.room || data.channel).toBe('general');
+      }
     });
 
-    test('should receive online users list', (done) => {
+    test('should receive online users list', async () => {
       clientSocket.emit('join_room', { room: 'general' });
 
-      clientSocket.on('online_users', (users) => {
-        expect(Array.isArray(users)).toBe(true);
-        expect(users.length).toBeGreaterThan(0);
-        expect(users[0]).toHaveProperty('nickname');
-        expect(users[0]).toHaveProperty('role');
-        done();
-      });
+      const users = await waitForEvent(clientSocket, 'online_users', 2000);
+      expect(Array.isArray(users)).toBe(true);
+      expect(users.length).toBeGreaterThan(0);
+      expect(users[0]).toHaveProperty('nickname');
+      expect(users[0]).toHaveProperty('role');
     });
 
-    test('should handle invalid room name', (done) => {
+    test('should handle invalid room name', async () => {
       clientSocket.emit('join_room', { room: '' });
 
-      clientSocket.on('error', (data) => {
-        expect(data.code).toBe('INVALID_ROOM_FORMAT');
-        done();
-      });
+      const data = await waitForEvent(clientSocket, 'error', 2000);
+      expect(data.code).toBe('INVALID_ROOM_FORMAT');
     });
 
-    test('should handle non-existent channel', (done) => {
+    test('should handle non-existent channel', async () => {
       clientSocket.emit('join_room', { room: 'nonexistent-channel' });
 
-      clientSocket.on('error', (data) => {
-        expect(data.code).toBe('CHANNEL_NOT_FOUND');
-        done();
-      });
+      const data = await waitForEvent(clientSocket, 'error', 2000);
+      expect(data.code).toBe('CHANNEL_NOT_FOUND');
     });
   });
 
   describe('Message Handling', () => {
-    beforeEach((done) => {
+    beforeEach(async () => {
       clientSocket.emit('join_room', { room: 'general' });
-      setTimeout(done, 100); // Wait for room join
+      // Wait for room join confirmation
+      await waitForEvent(clientSocket, 'message', 1000);
     });
 
-    test('should send public message', (done) => {
+    test('should send public message', async () => {
       const messageText = 'Hello from Socket.IO test!';
 
       clientSocket.emit('message', { text: messageText });
 
-      clientSocket.on('message', (data) => {
-        if (data.author === testUser.nickname && data.text === messageText) {
-          expect(data.author).toBe(testUser.nickname);
-          expect(data.room || data.channel).toBe('general');
-          expect(data.text).toBe(messageText);
-          done();
-        }
-      });
+      const data = await waitForEvent(clientSocket, 'message', 2000);
+      if (data.author === testUser.nickname && data.text === messageText) {
+        expect(data.author).toBe(testUser.nickname);
+        expect(data.room || data.channel).toBe('general');
+        expect(data.text).toBe(messageText);
+      }
     });
 
-    test('should receive message history', (done) => {
+    test('should receive message history', async () => {
       clientSocket.emit('join_room', { room: 'general' });
 
-      clientSocket.on('history', (messages) => {
-        expect(Array.isArray(messages)).toBe(true);
-        done();
-      });
+      const messages = await waitForEvent(clientSocket, 'history', 2000);
+      expect(Array.isArray(messages)).toBe(true);
     });
   });
 
   describe('Voice Channels', () => {
-    test('should join voice channel', (done) => {
+    test('should join voice channel', async () => {
       clientSocket.emit('join_voice_channel', { channelId: 'voice-chat' });
 
-      clientSocket.on('voice_joined', (data) => {
-        expect(data.channelId).toBe('voice-chat');
-        done();
-      });
+      const data = await waitForEvent(clientSocket, 'voice_joined', 2000);
+      expect(data.channelId).toBe('voice-chat');
     });
 
-    test('should leave voice channel', (done) => {
+    test('should leave voice channel', async () => {
       clientSocket.emit('join_voice_channel', { channelId: 'voice-chat' });
 
-      clientSocket.on('voice_joined', () => {
-        clientSocket.emit('leave_voice_channel');
+      await waitForEvent(clientSocket, 'voice_joined', 2000);
+      clientSocket.emit('leave_voice_channel');
 
-        clientSocket.on('voice_left', () => {
-          done();
-        });
-      });
+      await waitForEvent(clientSocket, 'voice_left', 2000);
     });
 
-    test('should reject joining text channel as voice channel', (done) => {
+    test('should reject joining text channel as voice channel', async () => {
       clientSocket.emit('join_voice_channel', { channelId: 'general' }); // This is a text channel
 
-      clientSocket.on('voice_error', (data) => {
-        expect(data.message).toBe('Voice channel not found');
-        done();
-      });
+      const data = await waitForEvent(clientSocket, 'voice_error', 2000);
+      expect(data.message).toBe('Voice channel not found');
     });
   });
 
   describe('Speaking Events', () => {
-    test('should broadcast speaking status', (done) => {
+    test('should broadcast speaking status', async () => {
       const secondUser = new User({
         nickname: 'speakingTestUser',
         email: 'speaking@test.com',
@@ -226,46 +270,37 @@ describe('Socket.IO Integration Tests - Fixed', () => {
         status: 'online'
       });
 
-      secondUser.save().then(() => {
-        const secondToken = jwt.sign(
-          { id: secondUser._id, nickname: secondUser.nickname, role: secondUser.role },
-          process.env.JWT_SECRET,
-          { expiresIn: '24h' }
-        );
+      await secondUser.save();
 
-        const listenerClient = io(`http://localhost:${serverPort}`, {
-          auth: { token: secondToken },
-          forceNew: true
-        });
+      const secondToken = jwt.sign(
+        { id: secondUser._id, nickname: secondUser.nickname, role: secondUser.role },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
 
-        listenerClient.on('connect', () => {
-          listenerClient.emit('join_room', { room: 'general' });
-
-          listenerClient.on('online_users', () => {
-            clientSocket.emit('speaking', { speaking: true });
-
-            listenerClient.on('speaking', (data) => {
-              expect(data.nickname).toBe(testUser.nickname);
-              expect(data.speaking).toBe(true);
-              listenerClient.disconnect();
-              done();
-            });
-          });
-        });
-
-        listenerClient.on('connect_error', (error) => {
-          done.fail(new Error(`Listener connection failed: ${error.message}`));
-        });
+      const listenerClient = io(`http://localhost:${serverPort}`, {
+        auth: { token: secondToken },
+        forceNew: true
       });
+
+      await waitForSocketConnection(listenerClient);
+
+      listenerClient.emit('join_room', { room: 'general' });
+      await waitForEvent(listenerClient, 'online_users', 2000);
+
+      clientSocket.emit('speaking', { speaking: true });
+
+      const data = await waitForEvent(listenerClient, 'speaking', 2000);
+      expect(data.nickname).toBe(testUser.nickname);
+      expect(data.speaking).toBe(true);
+
+      listenerClient.disconnect();
     });
   });
 
   describe('Disconnect Handling', () => {
-    test('should handle disconnect gracefully', (done) => {
-      clientSocket.on('disconnect', () => {
-        done();
-      });
-
+    test('should handle disconnect gracefully', async () => {
+      await waitForEvent(clientSocket, 'disconnect', 1000);
       clientSocket.disconnect();
     });
   });

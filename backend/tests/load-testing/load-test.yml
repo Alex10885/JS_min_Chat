@@ -1,0 +1,130 @@
+config:
+  target: 'http://localhost:3001'
+  http:
+    timeout: 30
+  phases:
+    # Ramp up to 10 users over 1 minute
+    - duration: 60
+      arrivalRate: 1  # Start with low rate
+      name: 'Ramp up'
+    # Test sustained high load
+    - duration: 120
+      arrivalRate: 10
+      name: 'Sustained load'
+    # Spike test
+    - duration: 30
+      arrivalRate: 50
+      name: 'Spike test'
+  defaults:
+    headers:
+      Content-Type: 'application/json'
+  processor: './load-test/processor.js'
+
+scenarios:
+  - name: 'Registration workflow'
+    weight: 20
+    flow:
+      # User registration
+      - post:
+          url: '/api/register'
+          json:
+            nickname: 'load_test_user_{{ $randomInt }}'
+            email: 'load_test_{{ $randomInt }}@example.com'
+            password: 'loadPass123'
+          expect:
+            - statusCode: [201, 409] # Allow duplicate registration during load testing
+
+  - name: 'Authentication workflow'
+    weight: 30
+    flow:
+      # User login
+      - post:
+          url: '/api/login'
+          json:
+            identifier: 'test_user'
+            password: 'wrong_password'
+          expect:
+            - statusCode: 400
+
+      # Valid login (if user exists)
+      - post:
+          url: '/api/login'
+          json:
+            identifier: 'load_test_user_{{ $randomInt(1,100) }}'
+            password: 'loadPass123'
+          expect:
+            - statusCode: [200, 400]
+          capture:
+            json: $.token
+            as: 'token'
+
+      # Protected endpoint access
+      - get:
+          url: '/api/channels'
+          headers:
+            Authorization: 'Bearer {{ token }}'
+          expect:
+            - statusCode: [200, 401]
+
+  - name: 'Channel operations'
+    weight: 40
+    variables:
+      userIndex: 0
+    beforeEachRequest:
+      - inc:
+          var: 'userIndex'
+          by: 1
+    flow:
+      # Login first
+      - post:
+          url: '/api/login'
+          json:
+            identifier: 'load_test_user_1'
+            password: 'loadPass123'
+          capture:
+            json: $.token
+            as: 'user_token'
+
+      # Get channels repeatedly
+      - loop:
+          - get:
+              url: '/api/channels'
+              headers:
+                Authorization: 'Bearer {{ user_token }}'
+              expect:
+                - statusCode: [200, 401]
+          - get:
+              url: '/api/channels'
+              headers:
+                Authorization: 'Bearer {{ user_token }}'
+              expect:
+                - statusCode: [200, 401]
+          - get:
+              url: '/api/channels'
+              headers:
+                Authorization: 'Bearer {{ user_token }}'
+              expect:
+                - statusCode: [200, 401]
+        count: 5
+
+      # Test rate limiting
+      - get:
+          url: '/api/channels'
+          headers:
+            Authorization: 'Bearer {{ user_token }}'
+          expect:
+            - statusCode: [200, 401, 429]
+
+  - name: 'Health check spam'
+    weight: 10
+    flow:
+      - get:
+          url: '/health'
+          expect:
+            - statusCode: 200
+          capture:
+            json: $.uptime
+            as: 'uptime'
+          capture:
+            json: $.timestamp
+            as: 'timestamp'

@@ -25,9 +25,17 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test",
+    "test": "react-scripts test --watchAll=false --maxWorkers=50%",
+    "test:watch": "react-scripts test",
+    "test:coverage": "react-scripts test --watchAll=false --coverage --maxWorkers=50%",
     "e2e": "cypress open",
     "e2e:run": "cypress run",
+    "e2e:parallel": "cypress run --record --parallel",
+    "e2e:record": "cypress run --record",
+    "e2e:critical": "cypress run --spec 'cypress/e2e/critical/**/*.cy.js'",
+    "e2e:important": "cypress run --spec 'cypress/e2e/important/**/*.cy.js'",
+    "e2e:optional": "cypress run --spec 'cypress/e2e/optional/**/*.cy.js'",
+    "e2e:groups": "npm run e2e:critical && npm run e2e:important && npm run e2e:optional",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -49,6 +57,9 @@
     ]
   },
   "devDependencies": {
-    "cypress": "^14.5.4"
+    "cypress": "^14.5.4",
+    "cypress-multi-reporters": "^1.6.4",
+    "mocha-junit-reporter": "^2.2.1",
+    "cypress-mochawesome-reporter": "^3.8.2"
   }
 }
