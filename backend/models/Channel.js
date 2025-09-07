@@ -32,7 +32,8 @@ const channelSchema = new mongoose.Schema({
   },
   createdBy: {
     type: String,
-    required: true
+    required: true,
+    trim: true
   },
   createdAt: {
     type: Date,
@@ -73,14 +74,14 @@ channelSchema.pre('save', function(next) {
 
 // Remove channel method (used for deleting with checks)
 channelSchema.methods.safeDelete = async function() {
-  // Count messages in this channel
-  const messageCount = await mongoose.model('Message').countDocuments({ channel: this.id });
+   // Count messages in this channel
+   const messageCount = await mongoose.model('Message').countDocuments({ channel: this.id });
 
-  if (messageCount > 0) {
-    throw new Error(`Cannot delete channel with ${messageCount} messages. Channel must be empty or archived.`);
-  }
+   if (messageCount > 0) {
+     throw new Error(`Cannot delete channel with ${messageCount} messages. Channel must be empty or archived.`);
+   }
 
-  return this.remove();
+   return this.deleteOne();
 };
 
 module.exports = mongoose.model('Channel', channelSchema);

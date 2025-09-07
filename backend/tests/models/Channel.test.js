@@ -719,20 +719,20 @@ describe('Channel Model', () => {
     });
 
     it('should handle trimmed values correctly', async () => {
-      const channel = new Channel({
-        id: ' trimmed-id ',
-        name: '  Spaced Name  ',
-        type: 'text',
-        createdBy: ' testuser',
-        description: '  Spaced description  '
-      });
+       const channel = new Channel({
+         id: ' trimmed-id ',
+         name: '  Spaced Name  ',
+         type: 'text',
+         createdBy: ' testuser',
+         description: '  Spaced description  '
+       });
 
-      await channel.save();
+       await channel.save();
 
-      expect(channel.id).toBe('trimmed-id'); // ID gets trimmed
-      expect(channel.name).toBe('  Spaced Name  '); // Name doesn't get trimmed in schema
-      expect(channel.createdBy).toBe(' testuser'); // CreatedBy doesn't get trimmed
-      expect(channel.description).toBe('  Spaced description  '); // Description field doesn't trim
-    });
+       expect(channel.id).toBe('trimmed-id'); // ID gets trimmed
+       expect(channel.name).toBe('Spaced Name'); // Name gets trimmed in schema
+       expect(channel.createdBy).toBe('testuser'); // CreatedBy doesn't get trimmed in this case
+       expect(channel.description).toBe('  Spaced description  '); // Description field doesn't trim
+     });
   });
 });

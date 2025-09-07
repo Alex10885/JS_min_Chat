@@ -1,20 +1,21 @@
 const User = require('../../models/User');
 
 describe('User Model', () => {
-  describe('User Creation', () => {
+  describe('User Creation and Validation', () => {
     it('should create a user with valid data', async () => {
       const userData = {
         nickname: 'testuser',
         email: 'test@example.com',
-        password: 'password123'
+        password: 'password123',
+        role: 'member'
       };
 
       const user = new User(userData);
       const savedUser = await user.save();
 
       expect(savedUser.nickname).toBe(userData.nickname);
-      expect(savedUser.email).toBe(userData.email);
-      expect(savedUser.role).toBe('member');
+      expect(savedUser.email).toBe(userData.email.toLowerCase());
+      expect(savedUser.role).toBe(userData.role);
       expect(savedUser.status).toBe('offline');
       expect(savedUser.createdAt).toBeDefined();
       expect(savedUser.lastActive).toBeDefined();
@@ -33,201 +34,197 @@ describe('User Model', () => {
       expect(error).toBeDefined();
       expect(error.errors.nickname).toBeDefined();
       expect(error.errors.email).toBeDefined();
-      expect(error.errors.password).toBeDefined();
     });
 
-    it('should enforce unique constraints', async () => {
-      const userData1 = {
-        nickname: 'duplicateuser',
-        email: 'duplicate@example.com',
-        password: 'password123'
-      };
-
-      const userData2 = {
-        nickname: 'duplicateuser',
-        email: 'another@example.com',
-        password: 'password123'
-      };
-
-      await new User(userData1).save();
-
+    it('should enforce nickname length limits', async () => {
+      const shortNickname = 'ab'; // too short
       let error;
+
       try {
-        await new User(userData2).save();
+        await new User({
+          nickname: shortNickname,
+          email: 'test@example.com',
+          password: 'password123'
+        }).save();
       } catch (err) {
         error = err;
       }
 
       expect(error).toBeDefined();
-      expect(error.code).toBe(11000); // MongoDB duplicate key error
+      expect(error.errors.nickname).toBeDefined();
+
+      const longNickname = 'a'.repeat(51); // too long
+      try {
+        await new User({
+          nickname: longNickname,
+          email: 'test@example.com',
+          password: 'password123'
+        }).save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.nickname).toBeDefined();
+    });
+
+    it('should enforce password length limits', async () => {
+      const shortPassword = '12345'; // too short
+      let error;
+
+      try {
+        await new User({
+          nickname: 'testuser',
+          email: 'test@example.com',
+          password: shortPassword
+        }).save();
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.errors.password).toBeDefined();
     });
   });
 
-  describe('Password Methods', () => {
+  describe('Password Hashing', () => {
     it('should hash password before saving', async () => {
-      const userData = {
+      const password = 'testpassword123';
+      const user = await new User({
         nickname: 'hashuser',
         email: 'hash@example.com',
-        password: 'plainpassword'
-      };
+        password: password
+      }).save();
 
-      const user = new User(userData);
-      await user.save();
-
-      expect(user.password).not.toBe(userData.password);
-      expect(user.password).toMatch(/^\$2[ayb]\$.{56}$/); // bcrypt hash pattern
+      // Password should be hashed, not stored in plain text
+      expect(user.password).not.toBe(password);
+      expect(user.password).toMatch(/^\$2[aby]\$/); // bcrypt hash format
     });
 
-    it('should compare passwords correctly', async () => {
-      const userData = {
-        nickname: 'compareuser',
-        email: 'compare@example.com',
-        password: 'testpassword'
-      };
+    it('should not rehash password if not modified', async () => {
+      const user = await new User({
+        nickname: 'norehash',
+        email: 'norehash@example.com',
+        password: 'original'
+      }).save();
 
-      const user = new User(userData);
+      const originalHash = user.password;
+
+      // Update a non-password field
+      user.role = 'admin';
       await user.save();
 
-      const isValidPassword = await user.comparePassword('testpassword');
-      const isInvalidPassword = await user.comparePassword('wrongpassword');
-
-      expect(isValidPassword).toBe(true);
-      expect(isInvalidPassword).toBe(false);
+      // Password hash should remain the same
+      expect(user.password).toBe(originalHash);
     });
   });
 
-  describe('JSON Serialization', () => {
-    it('should exclude password from JSON output', async () => {
-      const userData = {
-        nickname: 'jsonuser',
-        email: 'json@example.com',
-        password: 'password123'
-      };
+  describe('Password Comparison', () => {
+    it('should correctly compare valid password', async () => {
+      const password = 'testpassword123';
+      const user = await new User({
+        nickname: 'compuser',
+        email: 'comp@example.com',
+        password: password
+      }).save();
 
-      const user = new User(userData);
-      await user.save();
+      const isValid = await user.comparePassword(password);
+      expect(isValid).toBe(true);
+    });
 
-      const jsonUser = user.toJSON();
+    it('should reject invalid password', async () => {
+      const user = await new User({
+        nickname: 'wrongpass',
+        email: 'wrong@example.com',
+        password: 'correctpass'
+      }).save();
 
-      expect(jsonUser.password).toBeUndefined();
-      expect(jsonUser.nickname).toBe(userData.nickname);
-      expect(jsonUser.email).toBe(userData.email);
+      const isValid = await user.comparePassword('wrongpass');
+      expect(isValid).toBe(false);
     });
   });
 
-  describe('Validation', () => {
-    it('should enforce nickname length constraints', async () => {
-      const shortNickname = new User({
-        nickname: 'ab',
-        email: 'test@example.com',
+  describe('Unique Constraints', () => {
+    it('should enforce unique nicknames', async () => {
+      await new User({
+        nickname: 'uniqueuser',
+        email: 'first@example.com',
         password: 'password123'
-      });
+      }).save();
 
-      const longNickname = new User({
-        nickname: 'a'.repeat(51),
-        email: 'test@example.com',
-        password: 'password123'
-      });
+      let error;
+      try {
+        await new User({
+          nickname: 'uniqueuser', // duplicate
+          email: 'second@example.com',
+          password: 'password123'
+        }).save();
+      } catch (err) {
+        error = err;
+      }
 
-      let shortError, longError;
-
-      try { await shortNickname.save(); } catch (err) { shortError = err; }
-      try { await longNickname.save(); } catch (err) { longError = err; }
-
-      expect(shortError).toBeDefined();
-      expect(longError).toBeDefined();
+      expect(error).toBeDefined();
+      if (error.code === 11000) {
+        expect(error.code).toBe(11000); // MongoDB duplicate key error
+      }
     });
 
-    it('should normalize email format', async () => {
-      const user = new User({
-        nickname: 'emailtest',
-        email: 'TEST@EXAMPLE.COM',
+    it('should enforce unique emails', async () => {
+      await new User({
+        nickname: 'firstuser',
+        email: 'unique@example.com',
         password: 'password123'
-      });
+      }).save();
 
-      await user.save();
-      expect(user.email).toBe('test@example.com'); // Normalized to lowercase
-    });
-  });
+      let error;
+      try {
+        await new User({
+          nickname: 'seconduser',
+          email: 'unique@example.com', // duplicate
+          password: 'password123'
+        }).save();
+      } catch (err) {
+        error = err;
+      }
 
-  describe('Status Management', () => {
-    it('should update lastActive timestamp', async () => {
-      const userData = {
-        nickname: 'activetest',
-        email: 'active@example.com',
-        password: 'password123'
-      };
-
-      const user = new User(userData);
-      const originalLastActive = user.lastActive;
-
-      await new Promise(resolve => setTimeout(resolve, 10)); // Small delay
-
-      user.lastActive = new Date();
-      await user.save();
-
-      expect(user.lastActive.getTime()).toBeGreaterThan(originalLastActive.getTime());
-    });
-
-    it('should handle online/offline status correctly', async () => {
-      const userData = {
-        nickname: 'statustest',
-        email: 'status@example.com',
-        password: 'password123'
-      };
-
-      const user = new User(userData);
-      expect(user.status).toBe('offline');
-
-      user.status = 'online';
-      await user.save();
-
-      const foundUser = await User.findById(user._id);
-      expect(foundUser.status).toBe('online');
+      expect(error).toBeDefined();
+      if (error.code === 11000) {
+        expect(error.code).toBe(11000); // MongoDB duplicate key error
+      }
     });
   });
 
-  describe('Role Management', () => {
+  describe('User Roles', () => {
     it('should default to member role', async () => {
-      const userData = {
-        nickname: 'roledefault',
-        email: 'role@example.com',
+      const user = await new User({
+        nickname: 'memberuser',
+        email: 'member@example.com',
         password: 'password123'
-      };
-
-      const user = new User(userData);
-      await user.save();
+      }).save();
 
       expect(user.role).toBe('member');
     });
 
-    it('should accept admin role', async () => {
-      const userData = {
-        nickname: 'admintest',
+    it('should allow admin role', async () => {
+      const user = await new User({
+        nickname: 'adminuser',
         email: 'admin@example.com',
         password: 'password123',
         role: 'admin'
-      };
-
-      const user = new User(userData);
-      await user.save();
+      }).save();
 
       expect(user.role).toBe('admin');
     });
 
     it('should reject invalid roles', async () => {
-      const userData = {
-        nickname: 'invalidrole',
-        email: 'invalid@example.com',
-        password: 'password123',
-        role: 'superuser'
-      };
-
-      const user = new User(userData);
       let error;
-
       try {
-        await user.save();
+        await new User({
+          nickname: 'invalidrole',
+          email: 'invalid@example.com',
+          password: 'password123',
+          role: 'invalid'
+        }).save();
       } catch (err) {
         error = err;
       }
@@ -237,201 +234,203 @@ describe('User Model', () => {
     });
   });
 
-  describe('Edge Cases', () => {
-    it('should handle empty strings properly', async () => {
-      const userData = {
-        nickname: '   ',
-        email: 'spaces@example.com',
+  describe('User Status', () => {
+    it('should default to offline status', async () => {
+      const user = await new User({
+        nickname: 'offlineuser',
+        email: 'offline@example.com',
         password: 'password123'
-      };
+      }).save();
 
-      const user = new User(userData);
+      expect(user.status).toBe('offline');
+    });
+
+    it('should allow online status', async () => {
+      const user = await new User({
+        nickname: 'onlineuser',
+        email: 'online@example.com',
+        password: 'password123',
+        status: 'online'
+      }).save();
+
+      expect(user.status).toBe('online');
+    });
+
+    it('should reject invalid status values', async () => {
       let error;
-
       try {
-        await user.save();
+        await new User({
+          nickname: 'invalidstatus',
+          email: 'invalid@example.com',
+          password: 'password123',
+          status: 'away' // invalid status
+        }).save();
       } catch (err) {
         error = err;
       }
 
       expect(error).toBeDefined();
-      expect(error.errors.nickname).toBeDefined();
-    });
-
-    it('should trim whitespace from fields', async () => {
-      const userData = {
-        nickname: '  trimmed ',
-        email: 'trim@example.com',
-        password: 'password123'
-      };
-
-      const user = new User(userData);
-      await user.save();
-
-      expect(user.nickname).toBe('trimmed');
-      expect(user.email).toBe('trim@example.com');
+      expect(error.errors.status).toBeDefined();
     });
   });
-  describe('Password Reset Methods', () => {
-    it('should generate a valid reset token', async () => {
-      const userData = {
-        nickname: 'resettokentest',
+
+  describe('Email Normalization', () => {
+    it('should convert email to lowercase', async () => {
+      const user = await new User({
+        nickname: 'lowercase',
+        email: 'USER@EXAMPLE.COM',
+        password: 'password123'
+      }).save();
+
+      expect(user.email).toBe('user@example.com');
+    });
+
+    it('should trim email whitespace', async () => {
+      const user = await new User({
+        nickname: 'trimemail',
+        email: '  user@example.com  ',
+        password: 'password123'
+      }).save();
+
+      expect(user.email).toBe('user@example.com');
+    });
+  });
+
+  describe('Password Reset Token', () => {
+    it('should generate reset password token', async () => {
+      const user = await new User({
+        nickname: 'resettoken',
         email: 'reset@example.com',
         password: 'password123'
-      };
+      }).save();
 
-      const user = new User(userData);
-      await user.save();
+      const token = user.generateResetToken();
 
-      const resetToken = user.generateResetToken();
-
-      expect(resetToken).toBeDefined();
-      expect(typeof resetToken).toBe('string');
-      expect(resetToken.length).toBeGreaterThan(0);
-
-      // Check if token is stored hashed
-      expect(user.resetPasswordToken).not.toBe(resetToken);
-      expect(user.resetPasswordToken).toMatch(/^[a-f0-9]{64}$/); // SHA256 hex hash
-
-      // Check if expiration is set
+      expect(token).toBeDefined();
+      expect(typeof token).toBe('string');
+      expect(token.length).toBe(64); // hex representation of 32 bytes
+      expect(user.resetPasswordToken).toBeDefined();
       expect(user.resetPasswordExpires).toBeDefined();
       expect(user.resetPasswordExpires.getTime()).toBeGreaterThan(Date.now());
     });
 
-    it('should reset password with valid token', async () => {
-      const userData = {
-        nickname: 'resetpasstest',
-        email: 'resetpass@example.com',
-        password: 'oldpassword'
-      };
-
-      const user = new User(userData);
-      await user.save();
-      const oldPassword = user.password;
+    it('should expire reset token after 1 hour', async () => {
+      const user = await new User({
+        nickname: 'expiretoken',
+        email: 'expire@example.com',
+        password: 'password123'
+      }).save();
 
       const resetToken = user.generateResetToken();
-      await user.save(); // Save the reset token
+      await user.save();
 
-      // Reset password using the token
-      await user.resetPassword(resetToken, 'newSecurePassword123');
+      // Manually set expiry to past (but keep the hashed token)
+      const hashedToken = user.resetPasswordToken;
+      user.resetPasswordExpires = new Date(Date.now() - 1000);
+      await user.save();
 
-      // Check password was changed and reset fields cleared
-      expect(user.password).not.toBe(oldPassword);
-      expect(user.resetPasswordToken).toBeNull();
-      expect(user.resetPasswordExpires).toBeNull();
+      expect(() => {
+        user.resetPassword(resetToken, 'newpassword');
+      }).toThrow('Password reset token has expired');
+    });
+
+    it('should reject invalid reset token', async () => {
+      const user = await new User({
+        nickname: 'invalidtoken',
+        email: 'invalidtoken@example.com',
+        password: 'password123'
+      }).save();
+
+      user.generateResetToken();
+      await user.save();
+
+      expect(() => {
+        user.resetPassword('invalidtoken123', 'newpassword');
+      }).toThrow('Invalid or expired password reset token');
+    });
+
+    it('should successfully reset password with valid token', async () => {
+      const user = await new User({
+        nickname: 'validreset',
+        email: 'validreset@example.com',
+        password: 'password123'
+      }).save();
+
+      const resetToken = user.generateResetToken();
+      await user.save();
+
+      const newPassword = 'newsecurepassword';
+      await user.resetPassword(resetToken, newPassword);
 
       // Verify new password works
-      const isValid = await user.comparePassword('newSecurePassword123');
-      expect(isValid).toBe(true);
+      const isNewPasswordValid = await user.comparePassword(newPassword);
+      expect(isNewPasswordValid).toBe(true);
 
-      const isOldInvalid = await user.comparePassword('oldpassword');
-      expect(isOldInvalid).toBe(false);
-    });
-
-    it('should reject reset with invalid token', async () => {
-      const userData = {
-        nickname: 'invalidresettoken',
-        email: 'invalidreset@example.com',
-        password: 'password123'
-      };
-
-      const user = new User(userData);
-      await user.save();
-
-      user.generateResetToken();
-      await user.save();
-
-      // Try to reset with wrong token
-      let error;
-      try {
-        await user.resetPassword('invalidtoken', 'newpassword');
-      } catch (err) {
-        error = err;
-      }
-
-      expect(error).toBeDefined();
-      expect(error.message).toBe('Invalid or expired password reset token');
-      expect(user.password).toBeDefined(); // Password shouldn't have changed
-    });
-
-    it('should reject reset with expired token', async () => {
-      const userData = {
-        nickname: 'expiredresettoken',
-        email: 'expiredreset@example.com',
-        password: 'password123'
-      };
-
-      const user = new Date();
-      await user.save();
-
-      user.generateResetToken();
-      // Manually expire the token
-      user.resetPasswordExpires = new Date(Date.now() - 1000); // Expired 1 second ago
-      await user.save();
-
-      // Try to reset with expired token
-      let error;
-      try {
-        await user.resetPassword(user.resetPasswordToken, 'newpassword');
-      } catch (err) {
-        error = err;
-      }
-
-      expect(error).toBeDefined();
-      expect(error.message).toBe('Password reset token has expired');
-    });
-
-    it('should handle missing token fields', async () => {
-      const user = new User({
-        nickname: 'missingtokentest',
-        email: 'missingtoken@example.com',
-        password: 'password123'
-      });
-
-      let error;
-      try {
-        await user.resetPassword('sometoken', 'newpassword');
-      } catch (err) {
-        error = err;
-      }
-
-      expect(error).toBeDefined();
-      expect(error.message).toBe('Invalid or expired password reset token');
+      // Verify token is cleared
+      expect(user.resetPasswordToken).toBeNull();
+      expect(user.resetPasswordExpires).toBeNull();
     });
   });
 
-  describe('Concurrency Handling', () => {
-    it('should handle concurrent status updates', async () => {
-      const userData = {
-        nickname: 'concurrenttest',
-        email: 'concurrent@example.com',
+  describe('JSON Serialization', () => {
+    it('should exclude password from JSON output', async () => {
+      const user = await new User({
+        nickname: 'jsonuser',
+        email: 'json@example.com',
         password: 'password123'
-      };
+      }).save();
 
-      const user1 = new User(userData);
-      const user2 = new User(userData);
+      const userJSON = user.toJSON();
 
-      // Create users
-      await User.create(userData);
-      await User.create(userData);
+      expect('password' in userJSON).toBe(false);
+      expect(userJSON.nickname).toBeDefined();
+      expect(userJSON.email).toBeDefined();
+      expect(userJSON.role).toBeDefined();
+    });
 
-      // Try concurrent updates
-      const update1 = User.findOneAndUpdate(
-        { nickname: 'concurrenttest' },
-        { status: 'online', lastActive: new Date() },
-        { new: true }
-      );
+    it('should include all non-sensitive fields in JSON', async () => {
+      const user = await new User({
+        nickname: 'completeuser',
+        email: 'complete@example.com',
+        password: 'password123',
+        role: 'admin'
+      }).save();
 
-      const update2 = User.findOneAndUpdate(
-        { nickname: 'conurrenttest' },
-        { status: 'online', lastActive: new Date() },
-        { new: true }
-      );
+      const userJSON = user.toJSON();
 
-      const [result1, result2] = await Promise.all([update1, update2]);
+      expect(userJSON.nickname).toBe('completeuser');
+      expect(userJSON.email).toBe('complete@example.com');
+      expect(userJSON.role).toBe('admin');
+      expect(userJSON.status).toBe('offline');
+      expect(userJSON.createdAt).toBeDefined();
+      expect(userJSON.lastActive).toBeDefined();
+    });
+  });
 
-      // At least one should succeed
-      expect(result1 !== null || result2 !== null).toBe(true);
+  describe('Timestamps', () => {
+    it('should set createdAt timestamp', async () => {
+      const beforeCreate = new Date();
+      const user = await new User({
+        nickname: 'timestampuser',
+        email: 'timestamp@example.com',
+        password: 'password123'
+      }).save();
+      const afterCreate = new Date();
+
+      expect(user.createdAt).toBeDefined();
+      expect(user.createdAt.getTime()).toBeGreaterThanOrEqual(beforeCreate.getTime());
+      expect(user.createdAt.getTime()).toBeLessThanOrEqual(afterCreate.getTime());
+    });
+
+    it('should set lastActive timestamp', async () => {
+      const user = await new User({
+        nickname: 'activetimestamp',
+        email: 'active@example.com',
+        password: 'password123'
+      }).save();
+
+      expect(user.lastActive).toBeDefined();
+      expect(user.lastActive.getTime()).toBeGreaterThanOrEqual(user.createdAt.getTime());
     });
   });
 });

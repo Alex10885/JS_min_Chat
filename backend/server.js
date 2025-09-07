@@ -827,7 +827,13 @@ io.use(async (socket, next) => {
 
     if (!user) {
       console.log('❌ Socket authentication failed: User not found');
-      return next(new Error('User not found'));
+      return next(new Error('User not found or not online'));
+    }
+
+    // Check if user is marked as offline during authentication
+    if (user.status === 'offline') {
+      console.log('❌ Socket authentication failed: User is offline');
+      return next(new Error('User not found or not online'));
     }
 
     // Handle user status update based on connection count
