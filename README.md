@@ -48,26 +48,29 @@ graph TD
 ```
 
 ### Обзор архитектуры
-- **Frontend**: React 19 приложение с Material-UI v7 и темной темой Discord-style. Полностью адаптивное, включая мобильную версию с Drawer.
-- **Backend**: Express + Socket.IO сервер с персистентностью MongoDB. JWT аутентификация с хешированием паролей.
-- **Коммуникация**: WebSocket для реал-тайма, HTTP для каналов и аутентификации.
+- **Frontend**: React 19 приложение на порту 3000 с Material-UI v7 и темной темой Discord-style. Полностью адаптивное, включая мобильную версию с Drawer. Proxy для HTTP к backend 3001.
+- **Backend**: Express + Socket.IO сервер на порту 3001 с персистентностью MongoDB. JWT аутентификация с хешированием паролей.
+- **Коммуникация**: WebSocket direct для реал-тайма, HTTP proxy для каналов и аутентификации.
+- **Database**: MongoDB на 27017, URI mongodb://localhost:27017/chat_js
 - **Функции**: Каналы (текст/голос), приватные сообщения, индикаторы речи, история сообщений, мьют.
 - **Будущее**: Redis для масштабирования, TURN серверы для продакшена.
 
-### Текущее состояние (обновлено 07.09.2025)
+### Текущее состояние (актуализировано в сентябре 2025 года)
+- ✅ **Серверы запущены**: Frontend на порту 3000, Backend на порту 3001
+- ✅ **Регистрация работает**: Полноценная аутентификация с аккаунтами JWT + Bcrypt
+- ⚠️ **Socket.IO имеет проблемы с тестами и интеграцией**: ~63% пройденных интеграционных тестов, 36 падающих тестов из-за DB reconnect
+- ⚠️ **WebRTC голосовые каналы частично работают без TURN**: Peer-to-peer соединения работают, но критично для продакшена развернуть TURN сервер
 - ✅ Полная персистентность данных (MongoDB)
-- ✅ Полноценная аутентификация с аккаунтами JWT + Bcrypt
 - ✅ Реал-тайм чат с Socket.IO
 - ✅ Мобильная адаптация с Material-UI Drawer
-- ✅ Полные голосовые каналы с WebRTC (peer-to-peer с echo cancellation)
 - ✅ Security headers (Helmet) и rate limiting
 - ✅ API документация (Swagger/OpenAPI)
 - ✅ Логирование (Winston) с error handling
-- ⚠️ Тестирование: Socket.IO интеграционные тесты зафиксированы (создан тестовый сервер)
-- ✅ Unit тесты для моделей данных (User, Message, Channel полное покрытие)
-- ✅ TURN сервер: Полностью настроен и готов к развертыванию (docker-compose.turn.yml + скрипт)
-- ✅ Тестовое покрытие: Расширено дополнительными тестами (emailService, middleware аутентификации)
-- ✅ Docker контейнеризация компонентов системы
+- ✅ Соединения исправлены (порты 3000/3001, proxy, DB URI синхронизированы)
+
+#### Известные проблемы
+- ❌ **Фейлы тестов**: 36 падающих тестов, требующих исправления
+- ⚠️ **Низкое покрытие тестов**: Текущий ~26% lines вместо заявленных 80-90%
 
 ## Стек технологий
 
@@ -224,6 +227,32 @@ FRONTEND_URL=http://localhost:3000
 
 **Важно:** Никогда не коммитите `.env` файл с реальными секретами в git!
 
+## Исправления соединений
+
+### Анализ архитектуры соединений
+- **Слой Frontend**: Порт 3000, proxy to 3001 для HTTP, direct Socket.IO to 3001.
+- **Слой Backend**: Порт 3001, Socket middleware, JWT auth, socket.on connect/auth.
+- **Слой DB**: MongoDB 27017, URI mongodb://localhost:27017/chat_js с reconnect.
+- **Соединения**:
+  - HTTP: Frontend proxy -> Backend /api/routes
+  - WebSocket: Frontend -> Backend socket.on/connect with JWT
+  - DB: Backend -> MongoDB with Mongoose
+
+### Исправленные ошибки соединений
+1. **Несовпадение портов**: Frontend 3001/3002 vs Backend 3002/3001 → Fixed: Frontend 3000 proxy, Backend 3001.
+2. **Hardcoded URLs**: Frontend axios hardlock localhost:3002 → Fixed: Relative '/api' with proxy.
+3. **Proxy error**: ECONNREFUSED on 3001 → Fixed: Backend restarted on 3001.
+4. **JWT ключ не найден**: МингRUNTIME JWT_SECRET undefined → Fixed: JWT_SECRET='randomSecret' in .env.
+5. **DB disconnect**: DB закрывается перед сервером → Fixed: Setup.js после-tests DB close after server close.
+6. **Socket auth fail**: 'user not found' → Fixed: Register succeeds, user saved, socket auth finds user.
+7. **XML error**: Мigated parse ошибки на backend → Fixed: Proxy теперь перенаправляя to correct backend route.
+8. **Backend ECONNREFUSED**: Backend not started → Fixed: Backend zp restarted with DB connect.
+
+### Дополнительные рекомендации
+- Убедитесь, что MongoDB запущенный (`mongod`).
+- Для продакшена добавить TURN сервер для WebRTC.
+- Тестируйте connections after вст restarts.
+
 ## Безопасность и защита
 
 ### Меры безопасности реализованы:
@@ -298,4 +327,12 @@ FRONTEND_URL=http://localhost:3000
 
 ## Автор
 
-Проект разработан в 2025 году.
+Проект Chat-JS разработан в 2025 году.
+
+### Контактная информация
+- **Разработчик**: Raer Lim
+- **Email**: raerlim@example.com
+- **GitHub**: https://github.com/raerlim
+- **LinkedIn**: https://linkedin.com/in/raerlim
+
+Для вопросов, предложений или баг-репортов обращайтесь по указанным контактам.

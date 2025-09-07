@@ -11,7 +11,11 @@ let testServer;
 let testUser;
 let testToken;
 let clientSocket;
+const PORT = 3003; // Use running server port
+
 let serverPort;
+
+
 
 describe('Socket.IO Integration Tests', () => {
   beforeAll(async () => {

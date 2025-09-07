@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import ErrorBoundary from './ErrorBoundary';
 import useSocket from './useSocket';
 import useWebRTC from './useWebRTC';
+import AuthForm from './AuthForm';
 import axios from 'axios';
 
-import { Container, Paper, TextField, Button, List, ListItem, Typography, Box, ListItemText, Avatar, ThemeProvider, createTheme, CssBaseline, Badge, Drawer, IconButton, useMediaQuery } from '@mui/material';
+import { Container, Paper, TextField, Button, List, ListItem, Typography, Box, ListItemText, Avatar, ThemeProvider, createTheme, CssBaseline, Badge, Drawer, IconButton, useMediaQuery, Dialog, DialogTitle, DialogContent } from '@mui/material';
 import { SnackbarProvider, useSnackbar } from 'notistack';
 import Grid from '@mui/material/Grid';
 import Accordion from '@mui/material/Accordion';
@@ -59,13 +60,22 @@ function App() {
   const { enqueueSnackbar } = useSnackbar();
 
   const [token, setToken] = useState(localStorage.getItem('chatToken') || '');
-  const [nickname, setNickname] = useState('User1');
-  const [role, setRole] = useState('member');
+  const [nickname, setNickname] = useState(localStorage.getItem('nickname') || 'User1');
+  const [role, setRole] = useState(localStorage.getItem('role') || 'member');
+
+  const handleAuthSuccess = (token, user) => {
+    setToken(token);
+    setNickname(user.nickname);
+    setRole(user.role);
+    localStorage.setItem('chatToken', token);
+    localStorage.setItem('nickname', user.nickname);
+    localStorage.setItem('role', user.role);
+  };
 
   // Configure axios interceptors
   useEffect(() => {
     // Configure axios defaults
-    axios.defaults.baseURL = 'http://localhost:3001';
+    axios.defaults.baseURL = 'http://localhost:3001/api';
     axios.defaults.timeout = 10000; // 10 seconds timeout
 
     // Request interceptor for auth tokens
@@ -167,49 +177,10 @@ function App() {
   }, [channels, room]);
 
   useEffect(() => {
-    if (!token) {
-      // Register new user if not already logged in
-      // For demo purposes, we'll use a simple auto-registration
-      const defaultEmail = `${nickname.toLowerCase()}@example.com`;
-      axios.post('/register', {
-        nickname: nickname,
-        email: defaultEmail,
-        password: 'password123' // In production, this would be user input
-      })
-        .then(res => {
-          setToken(res.data.token);
-          localStorage.setItem('chatToken', res.data.token);
-          setRole(res.data.user.role);
-          enqueueSnackbar(`Добро пожаловать, ${res.data.user.nickname}!`, { variant: 'success' });
-        })
-        .catch(err => {
-          if (err.userMessage) {
-            enqueueSnackbar(err.userMessage, { variant: 'error' });
-          } else {
-            // Try login if registration failed (user might already exist)
-            axios.post('/login', {
-              identifier: nickname,
-              password: 'password123'
-            })
-              .then(res => {
-                setToken(res.data.token);
-                localStorage.setItem('chatToken', res.data.token);
-                setRole(res.data.user.role);
-              })
-              .catch(loginErr => {
-                console.error('Auth failed:', loginErr);
-                enqueueSnackbar(loginErr.userMessage || 'Ошибка аутентификации', { variant: 'error' });
-              });
-          }
-        });
-    }
-  }, [token, nickname, enqueueSnackbar]);
-
-  useEffect(() => {
     if (!token) return;
 
     // Fetch channels and set initial room
-    axios.get('http://localhost:3001/channels')
+    axios.get('/channels')
       .then(res => {
         const uniqueChannels = res.data.filter((channel, index, self) =>
           index === self.findIndex(c => c.id === channel.id)
@@ -304,11 +275,26 @@ function App() {
   };
 
 
-  return (
-    <ThemeProvider theme={darkTheme}>
-      <CssBaseline />
-      <Container maxWidth={false} style={{ height: '100vh', width: '100vw', background: 'linear-gradient(180deg, #5865f2 0%, #313338 100%)', padding: 0, margin: 0 }}>
-        <Box sx={{ height: 50, bgcolor: '#36393f', display: 'flex', alignItems: 'center', px: 2 }}>
+  if (!token) {
+    return (
+      <ThemeProvider theme={darkTheme}>
+        <CssBaseline />
+        <Container maxWidth={false} style={{ height: '100vh', width: '100vw', background: 'linear-gradient(180deg, #5865f2 0%, #313338 100%)', padding: 0, margin: 0 }}>
+          <Dialog open={!token} onClose={(event, reason) => { if (reason !== 'backdropClick') { setToken(null); } }} maxWidth="sm" fullWidth>
+            <DialogTitle>Authentication</DialogTitle>
+            <DialogContent>
+              <AuthForm onAuthSuccess={handleAuthSuccess} />
+            </DialogContent>
+          </Dialog>
+        </Container>
+      </ThemeProvider>
+    );
+  } else {
+    return (
+      <ThemeProvider theme={darkTheme}>
+        <CssBaseline />
+        <Container maxWidth={false} style={{ height: '100vh', width: '100vw', background: 'linear-gradient(180deg, #5865f2 0%, #313338 100%)', padding: 0, margin: 0 }}>
+          <Box sx={{ height: 50, bgcolor: '#36393f', display: 'flex', alignItems: 'center', px: 2 }}>
           {isMobile && (
             <IconButton onClick={() => setDrawerOpen(true)} sx={{ color: '#ffffff' }}>
               <MenuIcon />
@@ -412,7 +398,7 @@ function App() {
                     fullWidth
                     onClick={() => {
                       if (newChannelName.trim()) {
-                        axios.post('http://localhost:3001/channels', { name: newChannelName.trim(), type: 'text' })
+                        axios.post('/channels', { name: newChannelName.trim(), type: 'text' })
                           .then(res => {
                             setChannels(prev => [...prev, res.data]);
                             setNewChannelName('');
@@ -429,7 +415,7 @@ function App() {
                     fullWidth
                     onClick={() => {
                       if (newChannelName.trim()) {
-                        axios.post('http://localhost:3001/channels', { name: newChannelName.trim(), type: 'voice' })
+                        axios.post('/channels', { name: newChannelName.trim(), type: 'voice' })
                           .then(res => {
                             setChannels(prev => [...prev, res.data]);
                             setNewChannelName('');
@@ -514,7 +500,7 @@ function App() {
                   style={{ marginTop: 10 }}
                   onClick={() => {
                     if (newChannelName.trim()) {
-                      axios.post('http://localhost:3001/channels', { name: newChannelName.trim(), type: 'text' })
+                      axios.post('/channels', { name: newChannelName.trim(), type: 'text' })
                         .then(res => {
                           setChannels(prev => [...prev, res.data]);
                           setNewChannelName('');
@@ -532,7 +518,7 @@ function App() {
                   style={{ marginTop: 10 }}
                   onClick={() => {
                     if (newChannelName.trim()) {
-                      axios.post('http://localhost:3001/channels', { name: newChannelName.trim(), type: 'voice' })
+                      axios.post('/channels', { name: newChannelName.trim(), type: 'voice' })
                         .then(res => {
                           setChannels(prev => [...prev, res.data]);
                           setNewChannelName('');
@@ -625,6 +611,9 @@ function App() {
     </Container>
     </ThemeProvider>
   );
+
+}
+
 }
 
 export default App;
