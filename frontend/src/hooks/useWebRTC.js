@@ -319,83 +319,98 @@ const useWebRTC = (socket, voiceChannelId) => {
 
  // Security: Validate peer connection origins
  const validatePeerOrigin = useCallback((peerId, peerOrigin) => {
-   if (!peerOrigin) return false;
+  if (!peerOrigin) return false;
 
-   const allowedOrigins = [
-     window.location.origin,
-     process.env.REACT_APP_ALLOWED_ORIGIN
-   ].filter(Boolean);
+  const allowedOrigins = [
+    window.location.origin,
+    process.env.REACT_APP_ALLOWED_ORIGIN
+  ].filter(Boolean);
 
-   const isValidOrigin = allowedOrigins.some(allowed => peerOrigin.startsWith(allowed));
-   if (!isValidOrigin) {
-     console.warn(`[WebRTC-Security] Invalid peer origin: ${peerOrigin} for peer ${peerId}`);
-     enqueueSnackbar(`Небезопасное соединение от ${peerOrigin}`, { variant: 'warning' });
-   }
+  const isValidOrigin = allowedOrigins.some(allowed => peerOrigin.startsWith(allowed));
+  if (!isValidOrigin) {
+    console.warn(`[WebRTC-Security] Invalid peer origin: ${peerOrigin} for peer ${peerId}`);
+    enqueueSnackbar(`Небезопасное соединение от ${peerOrigin}`, { variant: 'warning' });
+  }
 
-   return isValidOrigin;
- }, [enqueueSnackbar]);
+  return isValidOrigin;
+}, [enqueueSnackbar]);
 
  // Security: Validate peer authentication tokens
  const validatePeerToken = useCallback(async (peerId, peerToken) => {
-   if (!peerToken) return false;
+  if (!peerToken) return false;
 
-   try {
-     const isValid = await validateTokenWithServer(peerId, peerToken);
+  try {
+    const isValid = await validateTokenWithServer(peerId, peerToken);
 
-     if (!isValid) {
-       console.warn(`[WebRTC-Security] Invalid peer token for ${peerId}`);
-       enqueueSnackbar(`Проблема аутентификации для ${peerId}`, { variant: 'warning' });
-     }
+    if (!isValid) {
+      console.warn(`[WebRTC-Security] Invalid peer token for ${peerId}`);
+      enqueueSnackbar(`Проблема аутентификации для ${peerId}`, { variant: 'warning' });
+    }
 
-     return isValid;
-   } catch (error) {
-     console.error(`[WebRTC-Security] Token validation error:`, error);
-     return false;
+    return isValid;
+  } catch (error) {
+    console.error(`[WebRTC-Security] Token validation error:`, error);
+    return false;
+  }
+}, []);
+
+ // Add enhanced handlers before useEffect that uses them
+ const handleUserJoinedVoiceV2 = useCallback(async (data) => {
+  const { nickname, socketId } = data;
+
+  console.log(`[WebRTC] Enhanced: User ${nickname} (${socketId}) joined voice`);
+
+  const peerConnection = await createEnhancedPeerConnection(socketId, nickname);
+  if (peerConnection && localStreamRef.current) {
+    // Add tracks and create offer
+    localStreamRef.current.getTracks().forEach(track => {
+      if (track.kind === 'audio') {
+        peerConnection.addTrack(track, localStreamRef.current);
+      }
+    });
+
+    const offer = await peerConnection.createOffer();
+    const optimizedOffer = optimizeSDP(offer);
+    await peerConnection.setLocalDescription(optimizedOffer);
+
+    socket.emit('voice_offer', {
+      offer: optimizedOffer,
+      targetSocketId: socketId,
+      token: localStorage.getItem('chatToken'), // Include auth token
+      origin: window.location.origin
+    });
+  }
+}, [socket]);
+
+ const handleUserLeftVoiceV2 = useCallback((data) => {
+  const { socketId } = data;
+  cleanupPeerConnection(socketId);
+
+  setParticipants(prev => prev.filter(p => p.socketId !== socketId));
+}, []);
+
+ // Cleanup function
+ const cleanupPeerConnection = useCallback((socketId) => {
+   const peerConnection = peerConnectionsRef.current.get(socketId);
+   if (peerConnection) {
+     peerConnection.close();
+     webrtcQualityService.unregisterConnection(socketId);
+     bandwidthAdapter.unregisterConnection(socketId);
+
+     peerConnectionsRef.current.delete(socketId);
    }
+
+   // Clear related timeouts and caches
+   const timeoutId = renegotiationTimeoutsRef.current.get(socketId);
+   if (timeoutId) {
+     clearTimeout(timeoutId);
+     renegotiationTimeoutsRef.current.delete(socketId);
+   }
+
+   sdpCacheRef.current.delete(socketId);
+   iceCacheRef.current.delete(socketId);
+   connectionAttemptsRef.current.delete(socketId);
  }, []);
-
- // Enhanced peer connection creation with security and monitoring
- const createEnhancedPeerConnection = useCallback(async (socketId, nickname) => {
-   try {
-     // Enhanced RTC configuration
-     const rtcConfig = rtcConfiguration();
-     const peerConnection = new RTCPeerConnection(rtcConfig);
-
-     // Register with quality monitoring service
-     webrtcQualityService.registerConnection(peerConnection, socketId, nickname);
-
-     // Enhanced event handlers
-     peerConnection.onconnectionstatechange = () => {
-       const state = peerConnection.connectionState;
-       handleConnectionStateChange(socketId, nickname, state);
-     };
-
-     peerConnection.oniceconnectionstatechange = () => {
-       const state = peerConnection.iceConnectionState;
-       handleICEConnectionStateChange(socketId, nickname, state);
-     };
-
-     peerConnection.onicestatechange = () => {
-       handleICEGatheringStateChange(socketId, peerConnection.iceGatheringState);
-     };
-
-     peerConnection.ontrack = (event) => {
-       handleRemoteTrack(socketId, nickname, event.streams[0]);
-     };
-
-     // Add to connections map
-     peerConnectionsRef.current.set(socketId, peerConnection);
-
-     return peerConnection;
-   } catch (error) {
-     console.error('Error creating enhanced peer connection:', error);
-     enqueueSnackbar('Не удалось создать защищенное соединение для голосового чата', {
-       variant: 'error',
-       autoHideDuration: 5000
-     });
-     return null;
-   }
- }, [rtcConfiguration, enqueueSnackbar]);
 
  // Handle connection state changes with enhanced monitoring
  const handleConnectionStateChange = useCallback((socketId, nickname, state) => {
@@ -493,6 +508,49 @@ const useWebRTC = (socket, voiceChannelId) => {
      autoHideDuration: 2000
    });
  }, [enqueueSnackbar]);
+
+ // Enhanced peer connection creation with security and monitoring
+ const createEnhancedPeerConnection = useCallback(async (socketId, nickname) => {
+   try {
+     // Enhanced RTC configuration
+     const rtcConfig = rtcConfiguration();
+     const peerConnection = new RTCPeerConnection(rtcConfig);
+
+     // Register with quality monitoring service
+     webrtcQualityService.registerConnection(peerConnection, socketId, nickname);
+
+     // Enhanced event handlers
+     peerConnection.onconnectionstatechange = () => {
+       const state = peerConnection.connectionState;
+       handleConnectionStateChange(socketId, nickname, state);
+     };
+
+     peerConnection.oniceconnectionstatechange = () => {
+       const state = peerConnection.iceConnectionState;
+       handleICEConnectionStateChange(socketId, nickname, state);
+     };
+
+     peerConnection.onicestatechange = () => {
+       handleICEGatheringStateChange(socketId, peerConnection.iceGatheringState);
+     };
+
+     peerConnection.ontrack = (event) => {
+       handleRemoteTrack(socketId, nickname, event.streams[0]);
+     };
+
+     // Add to connections map
+     peerConnectionsRef.current.set(socketId, peerConnection);
+
+     return peerConnection;
+   } catch (error) {
+     console.error('Error creating enhanced peer connection:', error);
+     enqueueSnackbar('Не удалось создать защищенное соединение для голосового чата', {
+       variant: 'error',
+       autoHideDuration: 5000
+     });
+     return null;
+   }
+ }, [rtcConfiguration, enqueueSnackbar, handleConnectionStateChange, handleICEConnectionStateChange, handleICEGatheringStateChange, handleRemoteTrack]);
 
  // Enhanced ICE candidate handling
  const handleIceCandidateV2 = useCallback((data) => {
@@ -830,63 +888,6 @@ const useWebRTC = (socket, voiceChannelId) => {
    };
  }, [socket, handleVoiceOfferV2, handleVoiceAnswer, handleIceCandidate, handleUserJoinedVoiceV2, handleUserLeftVoiceV2]);
 
- // Add enhanced handlers (legacy compatibility)
- const handleUserJoinedVoiceV2 = useCallback(async (data) => {
-   const { nickname, socketId } = data;
-
-   console.log(`[WebRTC] Enhanced: User ${nickname} (${socketId}) joined voice`);
-
-   const peerConnection = await createEnhancedPeerConnection(socketId, nickname);
-   if (peerConnection && localStreamRef.current) {
-     // Add tracks and create offer
-     localStreamRef.current.getTracks().forEach(track => {
-       if (track.kind === 'audio') {
-         peerConnection.addTrack(track, localStreamRef.current);
-       }
-     });
-
-     const offer = await peerConnection.createOffer();
-     const optimizedOffer = optimizeSDP(offer);
-     await peerConnection.setLocalDescription(optimizedOffer);
-
-     socket.emit('voice_offer', {
-       offer: optimizedOffer,
-       targetSocketId: socketId,
-       token: localStorage.getItem('chatToken'), // Include auth token
-       origin: window.location.origin
-     });
-   }
- }, [createEnhancedPeerConnection, optimizeSDP, socket]);
-
- const handleUserLeftVoiceV2 = useCallback((data) => {
-   const { socketId } = data;
-   cleanupPeerConnection(socketId);
-
-   setParticipants(prev => prev.filter(p => p.socketId !== socketId));
- }, []);
-
- // Cleanup function
- const cleanupPeerConnection = useCallback((socketId) => {
-   const peerConnection = peerConnectionsRef.current.get(socketId);
-   if (peerConnection) {
-     peerConnection.close();
-     webrtcQualityService.unregisterConnection(socketId);
-     bandwidthAdapter.unregisterConnection(socketId);
-
-     peerConnectionsRef.current.delete(socketId);
-   }
-
-   // Clear related timeouts and caches
-   const timeoutId = renegotiationTimeoutsRef.current.get(socketId);
-   if (timeoutId) {
-     clearTimeout(timeoutId);
-     renegotiationTimeoutsRef.current.delete(socketId);
-   }
-
-   sdpCacheRef.current.delete(socketId);
-   iceCacheRef.current.delete(socketId);
-   connectionAttemptsRef.current.delete(socketId);
- }, []);
 
  return {
    isConnected,

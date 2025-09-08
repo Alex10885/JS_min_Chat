@@ -102,8 +102,9 @@ channelSchema.pre('save', async function(next) {
 
 // Remove channel method (used for deleting with checks)
 channelSchema.methods.safeDelete = async function() {
+   const MessageModel = require('./Message'); // Ensure model is loaded
    // Count messages in this channel
-   const messageCount = await mongoose.model('Message').countDocuments({ channel: this.id });
+   const messageCount = await MessageModel.countDocuments({ channel: this.id });
 
    if (messageCount > 0) {
      throw new Error(`Cannot delete channel with ${messageCount} messages. Channel must be empty or archived.`);

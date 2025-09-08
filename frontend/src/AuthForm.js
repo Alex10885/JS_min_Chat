@@ -64,7 +64,7 @@ const AuthForm = ({ onAuthSuccess }) => {
         <Tab label="Login" />
         <Tab label="Register" />
       </Tabs>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} data-testid="auth-form">
         {mode === 0 ? (
           <TextField
             label="Identifier"

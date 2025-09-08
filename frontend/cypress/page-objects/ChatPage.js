@@ -5,23 +5,23 @@ class ChatPage extends BasePage {
     super('/');
     this.container = '.chat-app, .app-container, main';
 
-    // Define selectors
+    // Define selectors based on Material-UI and actual components
     this.selectors = {
-      channelList: '.channel-list, .sidebar, [data-testid="channel-list"]',
-      messageList: '.message-list, .messages, [data-testid="message-list"]',
-      messageInput: 'input[type="text"], textarea, [data-testid="message-input"]',
-      sendButton: 'button[type="submit"], button:contains("Send"), button:contains("Отправить")',
+      channelList: '.MuiGrid-item .MuiPaper-root:has(.MuiTypography-root.MuiTypography-h6:contains("Каналы"))',
+      messageList: '.MuiGrid-item .MuiPaper-root:has(.MuiTypography-root:contains("Введите сообщение"))', // For message area
+      messageInput: '[data-testid="message-input"]',
+      sendButton: '[data-testid="send-message-button"]',
       channels: {
-        general: '[data-channel="general"], [data-channel-id="general"]',
-        voice: '[data-channel="voice-chat"]'
+        general: '.MuiListItem-root:contains("general"), .MuiListItem-root:contains("#general")',
+        voice: '.MuiListItem-root:contains("voice-chat"), .MuiListItem-root:contains("voice-chat")'
       },
-      userList: '.user-list, .online-users, [data-testid="user-list"]',
-      voiceControls: '.voice-controls, [data-testid="voice-controls"]',
-      connectionStatus: '.connection-status, [data-testid="connection-status"]',
-      newChannelInput: 'input[placeholder*="New Channel"], input[placeholder*="Новый канал"]',
+      userList: '.MuiList-root:has(.MuiAvatar-root)',
+      voiceControls: '.MuiBox-root:has(button:has-text("Выйти"))', // Near voice channel info
+      connectionStatus: '.MuiAppBar-root, header',
+      newChannelInput: '[data-testid="new-channel-input"]',
       createTextChannelBtn: 'button:contains("# Текст")',
       createVoiceChannelBtn: 'button:contains("🎤 Голос")',
-      drawer: '.drawer, [data-testid="mobile-drawer"]'
+      drawer: '.MuiDrawer-root, .MobileDrawer-open'
     };
   }
 

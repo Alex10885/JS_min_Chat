@@ -5,7 +5,31 @@ import {
   createSocketMocks,
   mockConsole,
   MockEventEmitter
-} from './__tests__/mocks';
+} from '../__tests__/mocks';
+
+// Mock useSnackbar
+jest.mock('notistack', () => ({
+  useSnackbar: () => ({
+    enqueueSnackbar: jest.fn(),
+  }),
+}));
+
+// Mock services
+jest.mock('../services/webrtcQualityService', () => ({
+  registerConnection: jest.fn(),
+  unregisterConnection: jest.fn(),
+  handleConnectionStateChange: jest.fn(),
+}));
+
+jest.mock('../services/turnServerHealthMonitor', () => ({
+  getBestServer: jest.fn(),
+}));
+
+jest.mock('../utils/bandwidthAdapter', () => ({
+  registerConnection: jest.fn(),
+  unregisterConnection: jest.fn(),
+  handleQualityBasedAdaptation: jest.fn(),
+}));
 
 // Setup all mocks
 const { RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, navigator: mockNavigator } = createWebRTCMocks();
@@ -15,6 +39,14 @@ const { socket: mockSocket } = createSocketMocks();
 global.RTCPeerConnection = RTCPeerConnection;
 global.RTCIceCandidate = RTCIceCandidate;
 global.RTCSessionDescription = RTCSessionDescription;
+
+// Ensure global.navigator.mediaDevices exists
+if (!global.navigator) {
+  global.navigator = {};
+}
+if (!global.navigator.mediaDevices) {
+  global.navigator.mediaDevices = {};
+}
 Object.assign(global.navigator.mediaDevices, mockNavigator.mediaDevices);
 
 const mockStream = {
@@ -29,10 +61,12 @@ const mockStream = {
 describe('useWebRTC', () => {
   let mockGetUserMedia;
   let consoleSpy;
+  let localStreamRef;
 
   beforeEach(() => {
     jest.clearAllMocks();
 
+    localStreamRef = { current: mockStream };
     mockGetUserMedia = jest.fn().mockResolvedValue(mockStream);
     global.navigator.mediaDevices.getUserMedia = mockGetUserMedia;
 
@@ -92,7 +126,7 @@ describe('useWebRTC', () => {
 
     test('should handle getUserMedia error', async () => {
       const error = new Error('Permission denied');
-      global.global.navigator.mediaDevices.getUserMedia.mockRejectedValue(error);
+      global.navigator.mediaDevices.getUserMedia.mockRejectedValue(error);
 
       const { result } = renderHook(() => useWebRTC(mockSocket, null));
 

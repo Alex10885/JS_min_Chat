@@ -1,12 +1,42 @@
 import React from 'react';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { SnackbarProvider } from 'notistack';
-import App from './App';
 import axios from 'axios';
 
+// Mock socket.io-client
+jest.mock('socket.io-client', () => ({
+  default: jest.fn(() => ({
+    on: jest.fn(),
+    off: jest.fn(),
+    emit: jest.fn(),
+    connect: jest.fn(),
+    disconnect: jest.fn(),
+    connected: true,
+    removeAllListeners: jest.fn(),
+  }))
+}));
+
 // Mock hooks
-jest.mock('./useSocket');
+jest.mock('./hooks/useSocket', () => ({
+  default: () => ({
+    socket: mockSocket,
+    isConnected: true,
+    connectionStatus: 'connected',
+    reconnect: jest.fn(),
+  }),
+}));
 jest.mock('./useWebRTC');
+
+// Mock notistack
+jest.mock('notistack');
+
+// Mock notistack useSnackbar
+jest.mock('notistack', () => ({
+  useSnackbar: () => ({
+    enqueueSnackbar: jest.fn(),
+  }),
+  SnackbarProvider: ({ children }) => <div>{children}</div>,
+}));
 
 // Mock axios
 jest.mock('axios', () => ({
@@ -31,6 +61,9 @@ jest.mock('axios', () => ({
   },
 }));
 
+// Import after mocks are set up
+const App = require('./App').default;
+
 // Mock localStorage
 const mockLocalStorage = {
   getItem: jest.fn(),
@@ -50,15 +83,16 @@ const mockSocket = {
   disconnect: jest.fn(),
 };
 
-const mockUseSocket = require('./useSocket');
+const mockUseSocket = require('./hooks/useSocket');
 const mockUseWebRTC = require('./useWebRTC');
 
-mockUseSocket.default.mockReturnValue({
+// Set up mock implementations
+mockUseSocket.default.mockImplementation(() => ({
   socket: mockSocket,
   isConnected: true,
   connectionStatus: 'connected',
   reconnect: jest.fn(),
-});
+}));
 
 mockUseWebRTC.default.mockReturnValue({
   isConnected: false,

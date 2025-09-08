@@ -51,6 +51,7 @@ const MessageInput = ({ socket, isConnected, currentRoom, onSendMessage }) => {
         <TextField
           fullWidth
           variant="outlined"
+          data-testid="message-input"
           placeholder={
             !isConnected
               ? 'Нет подключения к серверу...'
@@ -87,6 +88,7 @@ const MessageInput = ({ socket, isConnected, currentRoom, onSendMessage }) => {
         <Button
           variant="contained"
           color="primary"
+          data-testid="send-message-button"
           onClick={handleSendMessage}
           disabled={!isConnected || !currentRoom || !input.trim()}
           sx={{

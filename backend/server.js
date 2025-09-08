@@ -16,7 +16,7 @@ const crypto = require('crypto');
 const session = require('express-session');
 const RedisStore = require('connect-redis');
 const { redisManager } = require('./src/config/redis');
-const { connectDB, closeDB } = require('./db/connection');
+const { connectDB, closeDB, connectionMonitor } = require('./db/connection');
 const emailService = require('./services/emailService');
 const {
   performanceMonitor,
@@ -34,6 +34,11 @@ const {
 
 // Import AuthService for extracted authentication logic
 const authService = require('./src/services/authService');
+
+// Define getCachedStats function for connection metrics
+const getCachedStats = async () => {
+  return connectionMonitor.getMetrics();
+};
 
 // Extract rate limiters from AuthService
 const { authRateLimiter, apiRateLimiter, generalRateLimiter } = authService;
@@ -2453,10 +2458,12 @@ const optimizedInitializeDatabase = asyncOptimize(initializeServer, {
 });
 
 // Start the server with async optimization
-optimizedInitializeDatabase().catch(err => {
-  logger.error('Unhandled error during server startup:', err);
-  process.exit(1);
-});
+if (process.env.NODE_ENV !== 'test') {
+  optimizedInitializeDatabase().catch(err => {
+    logger.error('Unhandled error during server startup:', err);
+    process.exit(1);
+  });
+}
 
 // Memory cleanup on long-running operations
 setInterval(() => {
@@ -2556,3 +2563,5 @@ setInterval(() => {
   }
 
 }, 60000); // Check every minute
+
+module.exports = app;

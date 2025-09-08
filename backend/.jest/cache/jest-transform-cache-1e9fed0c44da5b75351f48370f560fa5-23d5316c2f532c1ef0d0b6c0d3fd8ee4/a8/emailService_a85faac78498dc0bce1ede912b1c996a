@@ -1,0 +1,627 @@
+05dceacd80f37b3161457826d899c914
+/* istanbul ignore next */
+function cov_27kbpnqs8d() {
+  var path = "/home/raerlim/Chat-JS/backend/src/services/emailService.js";
+  var hash = "f0ae468f97d2e79ebccf8b464b36f2f3d4a3303f";
+  var global = new Function("return this")();
+  var gcv = "__coverage__";
+  var coverageData = {
+    path: "/home/raerlim/Chat-JS/backend/src/services/emailService.js",
+    statementMap: {
+      "0": {
+        start: {
+          line: 1,
+          column: 19
+        },
+        end: {
+          line: 1,
+          column: 40
+        }
+      },
+      "1": {
+        start: {
+          line: 5,
+          column: 4
+        },
+        end: {
+          line: 13,
+          column: 7
+        }
+      },
+      "2": {
+        start: {
+          line: 17,
+          column: 21
+        },
+        end: {
+          line: 17,
+          column: 106
+        }
+      },
+      "3": {
+        start: {
+          line: 19,
+          column: 24
+        },
+        end: {
+          line: 83,
+          column: 5
+        }
+      },
+      "4": {
+        start: {
+          line: 85,
+          column: 4
+        },
+        end: {
+          line: 92,
+          column: 5
+        }
+      },
+      "5": {
+        start: {
+          line: 86,
+          column: 19
+        },
+        end: {
+          line: 86,
+          column: 63
+        }
+      },
+      "6": {
+        start: {
+          line: 87,
+          column: 6
+        },
+        end: {
+          line: 87,
+          column: 64
+        }
+      },
+      "7": {
+        start: {
+          line: 88,
+          column: 6
+        },
+        end: {
+          line: 88,
+          column: 58
+        }
+      },
+      "8": {
+        start: {
+          line: 90,
+          column: 6
+        },
+        end: {
+          line: 90,
+          column: 66
+        }
+      },
+      "9": {
+        start: {
+          line: 91,
+          column: 6
+        },
+        end: {
+          line: 91,
+          column: 18
+        }
+      },
+      "10": {
+        start: {
+          line: 96,
+          column: 24
+        },
+        end: {
+          line: 147,
+          column: 5
+        }
+      },
+      "11": {
+        start: {
+          line: 149,
+          column: 4
+        },
+        end: {
+          line: 156,
+          column: 5
+        }
+      },
+      "12": {
+        start: {
+          line: 150,
+          column: 19
+        },
+        end: {
+          line: 150,
+          column: 63
+        }
+      },
+      "13": {
+        start: {
+          line: 151,
+          column: 6
+        },
+        end: {
+          line: 151,
+          column: 72
+        }
+      },
+      "14": {
+        start: {
+          line: 152,
+          column: 6
+        },
+        end: {
+          line: 152,
+          column: 58
+        }
+      },
+      "15": {
+        start: {
+          line: 154,
+          column: 6
+        },
+        end: {
+          line: 154,
+          column: 74
+        }
+      },
+      "16": {
+        start: {
+          line: 155,
+          column: 6
+        },
+        end: {
+          line: 155,
+          column: 18
+        }
+      },
+      "17": {
+        start: {
+          line: 160,
+          column: 0
+        },
+        end: {
+          line: 160,
+          column: 36
+        }
+      }
+    },
+    fnMap: {
+      "0": {
+        name: "(anonymous_0)",
+        decl: {
+          start: {
+            line: 4,
+            column: 2
+          },
+          end: {
+            line: 4,
+            column: 3
+          }
+        },
+        loc: {
+          start: {
+            line: 4,
+            column: 16
+          },
+          end: {
+            line: 14,
+            column: 3
+          }
+        },
+        line: 4
+      },
+      "1": {
+        name: "(anonymous_1)",
+        decl: {
+          start: {
+            line: 16,
+            column: 2
+          },
+          end: {
+            line: 16,
+            column: 3
+          }
+        },
+        loc: {
+          start: {
+            line: 16,
+            column: 50
+          },
+          end: {
+            line: 93,
+            column: 3
+          }
+        },
+        line: 16
+      },
+      "2": {
+        name: "(anonymous_2)",
+        decl: {
+          start: {
+            line: 95,
+            column: 2
+          },
+          end: {
+            line: 95,
+            column: 3
+          }
+        },
+        loc: {
+          start: {
+            line: 95,
+            column: 45
+          },
+          end: {
+            line: 157,
+            column: 3
+          }
+        },
+        line: 95
+      }
+    },
+    branchMap: {
+      "0": {
+        loc: {
+          start: {
+            line: 6,
+            column: 12
+          },
+          end: {
+            line: 6,
+            column: 53
+          }
+        },
+        type: "binary-expr",
+        locations: [{
+          start: {
+            line: 6,
+            column: 12
+          },
+          end: {
+            line: 6,
+            column: 33
+          }
+        }, {
+          start: {
+            line: 6,
+            column: 37
+          },
+          end: {
+            line: 6,
+            column: 53
+          }
+        }],
+        line: 6
+      },
+      "1": {
+        loc: {
+          start: {
+            line: 7,
+            column: 12
+          },
+          end: {
+            line: 7,
+            column: 40
+          }
+        },
+        type: "binary-expr",
+        locations: [{
+          start: {
+            line: 7,
+            column: 12
+          },
+          end: {
+            line: 7,
+            column: 33
+          }
+        }, {
+          start: {
+            line: 7,
+            column: 37
+          },
+          end: {
+            line: 7,
+            column: 40
+          }
+        }],
+        line: 7
+      },
+      "2": {
+        loc: {
+          start: {
+            line: 17,
+            column: 24
+          },
+          end: {
+            line: 17,
+            column: 75
+          }
+        },
+        type: "binary-expr",
+        locations: [{
+          start: {
+            line: 17,
+            column: 24
+          },
+          end: {
+            line: 17,
+            column: 48
+          }
+        }, {
+          start: {
+            line: 17,
+            column: 52
+          },
+          end: {
+            line: 17,
+            column: 75
+          }
+        }],
+        line: 17
+      }
+    },
+    s: {
+      "0": 0,
+      "1": 0,
+      "2": 0,
+      "3": 0,
+      "4": 0,
+      "5": 0,
+      "6": 0,
+      "7": 0,
+      "8": 0,
+      "9": 0,
+      "10": 0,
+      "11": 0,
+      "12": 0,
+      "13": 0,
+      "14": 0,
+      "15": 0,
+      "16": 0,
+      "17": 0
+    },
+    f: {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    b: {
+      "0": [0, 0],
+      "1": [0, 0],
+      "2": [0, 0]
+    },
+    _coverageSchema: "1a1c01bbd47fc00a2c39e90264f33305004495a9",
+    hash: "f0ae468f97d2e79ebccf8b464b36f2f3d4a3303f"
+  };
+  var coverage = global[gcv] || (global[gcv] = {});
+  if (!coverage[path] || coverage[path].hash !== hash) {
+    coverage[path] = coverageData;
+  }
+  var actualCoverage = coverage[path];
+  {
+    // @ts-ignore
+    cov_27kbpnqs8d = function () {
+      return actualCoverage;
+    };
+  }
+  return actualCoverage;
+}
+cov_27kbpnqs8d();
+const nodemailer =
+/* istanbul ignore next */
+(cov_27kbpnqs8d().s[0]++, require('nodemailer'));
+class EmailService {
+  constructor() {
+    /* istanbul ignore next */
+    cov_27kbpnqs8d().f[0]++;
+    cov_27kbpnqs8d().s[1]++;
+    this.transporter = nodemailer.createTransport({
+      host:
+      /* istanbul ignore next */
+      (cov_27kbpnqs8d().b[0][0]++, process.env.SMTP_HOST) ||
+      /* istanbul ignore next */
+      (cov_27kbpnqs8d().b[0][1]++, 'smtp.gmail.com'),
+      port:
+      /* istanbul ignore next */
+      (cov_27kbpnqs8d().b[1][0]++, process.env.SMTP_PORT) ||
+      /* istanbul ignore next */
+      (cov_27kbpnqs8d().b[1][1]++, 587),
+      secure: false,
+      // true for 465, false for other ports
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+  }
+  async sendPasswordResetEmail(email, resetToken) {
+    /* istanbul ignore next */
+    cov_27kbpnqs8d().f[1]++;
+    const resetUrl =
+    /* istanbul ignore next */
+    (cov_27kbpnqs8d().s[2]++, `${
+    /* istanbul ignore next */
+    (cov_27kbpnqs8d().b[2][0]++, process.env.FRONTEND_URL) ||
+    /* istanbul ignore next */
+    (cov_27kbpnqs8d().b[2][1]++, 'http://localhost:3000')}/reset-password/${resetToken}`);
+    const mailOptions =
+    /* istanbul ignore next */
+    (cov_27kbpnqs8d().s[3]++, {
+      from: {
+        name: 'Chat-JS Support',
+        address: process.env.SMTP_USER
+      },
+      to: email,
+      subject: 'Password Reset Request - Chat-JS',
+      html: `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Password Reset</title>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px 10px 0 0; }
+                .content { background: #f8f9fa; padding: 20px; border: 1px solid #dee2e6; }
+                .button { display: inline-block; padding: 12px 24px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+                .footer { background: #6c757d; color: white; padding: 20px; border-radius: 0 0 10px 10px; font-size: 12px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h2>Password Reset Request</h2>
+                </div>
+                <div class="content">
+                    <p>You have requested to reset your password for your Chat-JS account.</p>
+                    <p>Please click the button below to reset your password:</p>
+
+                    <a href="${resetUrl}" class="button">Reset Password</a>
+
+                    <p><strong>This link will expire in 1 hour.</strong></p>
+
+                    <p>If you did not request this password reset, please ignore this email.</p>
+
+                    <p>For security reasons, this link can only be used once.</p>
+                </div>
+                <div class="footer">
+                    <p>If the button doesn't work, copy and paste this URL into your browser:</p>
+                    <p>${resetUrl}</p>
+                    <p>&copy; 2024 Chat-JS. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+      `,
+      text: `
+        Password Reset Request - Chat-JS
+
+        You have requested to reset your password.
+
+        Please use the following link to reset your password:
+        ${resetUrl}
+
+        This link will expire in 1 hour.
+
+        If you did not request this password reset, please ignore this email.
+
+        Best regards,
+        Chat-JS Support Team
+      `
+    });
+    /* istanbul ignore next */
+    cov_27kbpnqs8d().s[4]++;
+    try {
+      const info =
+      /* istanbul ignore next */
+      (cov_27kbpnqs8d().s[5]++, await this.transporter.sendMail(mailOptions));
+      /* istanbul ignore next */
+      cov_27kbpnqs8d().s[6]++;
+      console.log('Password reset email sent:', info.messageId);
+      /* istanbul ignore next */
+      cov_27kbpnqs8d().s[7]++;
+      return {
+        success: true,
+        messageId: info.messageId
+      };
+    } catch (error) {
+      /* istanbul ignore next */
+      cov_27kbpnqs8d().s[8]++;
+      console.error('Error sending password reset email:', error);
+      /* istanbul ignore next */
+      cov_27kbpnqs8d().s[9]++;
+      throw error;
+    }
+  }
+  async sendPasswordResetSuccessEmail(email) {
+    /* istanbul ignore next */
+    cov_27kbpnqs8d().f[2]++;
+    const mailOptions =
+    /* istanbul ignore next */
+    (cov_27kbpnqs8d().s[10]++, {
+      from: {
+        name: 'Chat-JS Support',
+        address: process.env.SMTP_USER
+      },
+      to: email,
+      subject: 'Password Reset Successful - Chat-JS',
+      html: `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Password Reset Successful</title>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 20px; border-radius: 10px 10px 0 0; }
+                .content { background: #f8f9fa; padding: 20px; border: 1px solid #dee2e6; }
+                .footer { background: #6c757d; color: white; padding: 20px; border-radius: 0 0 10px 10px; font-size: 12px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h2>Password Reset Successful</h2>
+                </div>
+                <div class="content">
+                    <p>Your password has been successfully reset!</p>
+                    <p>You can now sign in to your Chat-JS account with your new password.</p>
+                    <p>If you did not make this change, please contact our support team immediately.</p>
+                </div>
+                <div class="footer">
+                    <p>&copy; 2024 Chat-JS. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+      `,
+      text: `
+        Password Reset Successful - Chat-JS
+
+        Your password has been successfully reset!
+
+        You can now sign in to your Chat-JS account with your new password.
+
+        If you did not make this change, please contact our support team immediately.
+
+        Best regards,
+        Chat-JS Support Team
+      `
+    });
+    /* istanbul ignore next */
+    cov_27kbpnqs8d().s[11]++;
+    try {
+      const info =
+      /* istanbul ignore next */
+      (cov_27kbpnqs8d().s[12]++, await this.transporter.sendMail(mailOptions));
+      /* istanbul ignore next */
+      cov_27kbpnqs8d().s[13]++;
+      console.log('Password reset success email sent:', info.messageId);
+      /* istanbul ignore next */
+      cov_27kbpnqs8d().s[14]++;
+      return {
+        success: true,
+        messageId: info.messageId
+      };
+    } catch (error) {
+      /* istanbul ignore next */
+      cov_27kbpnqs8d().s[15]++;
+      console.error('Error sending password reset success email:', error);
+      /* istanbul ignore next */
+      cov_27kbpnqs8d().s[16]++;
+      throw error;
+    }
+  }
+}
+/* istanbul ignore next */
+cov_27kbpnqs8d().s[17]++;
+module.exports = new EmailService();
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJuYW1lcyI6WyJjb3ZfMjdrYnBucXM4ZCIsImFjdHVhbENvdmVyYWdlIiwibm9kZW1haWxlciIsInMiLCJyZXF1aXJlIiwiRW1haWxTZXJ2aWNlIiwiY29uc3RydWN0b3IiLCJmIiwidHJhbnNwb3J0ZXIiLCJjcmVhdGVUcmFuc3BvcnQiLCJob3N0IiwiYiIsInByb2Nlc3MiLCJlbnYiLCJTTVRQX0hPU1QiLCJwb3J0IiwiU01UUF9QT1JUIiwic2VjdXJlIiwiYXV0aCIsInVzZXIiLCJTTVRQX1VTRVIiLCJwYXNzIiwiU01UUF9QQVNTIiwic2VuZFBhc3N3b3JkUmVzZXRFbWFpbCIsImVtYWlsIiwicmVzZXRUb2tlbiIsInJlc2V0VXJsIiwiRlJPTlRFTkRfVVJMIiwibWFpbE9wdGlvbnMiLCJmcm9tIiwibmFtZSIsImFkZHJlc3MiLCJ0byIsInN1YmplY3QiLCJodG1sIiwidGV4dCIsImluZm8iLCJzZW5kTWFpbCIsImNvbnNvbGUiLCJsb2ciLCJtZXNzYWdlSWQiLCJzdWNjZXNzIiwiZXJyb3IiLCJzZW5kUGFzc3dvcmRSZXNldFN1Y2Nlc3NFbWFpbCIsIm1vZHVsZSIsImV4cG9ydHMiXSwic291cmNlcyI6WyJlbWFpbFNlcnZpY2UuanMiXSwic291cmNlc0NvbnRlbnQiOlsiY29uc3Qgbm9kZW1haWxlciA9IHJlcXVpcmUoJ25vZGVtYWlsZXInKTtcblxuY2xhc3MgRW1haWxTZXJ2aWNlIHtcbiAgY29uc3RydWN0b3IoKSB7XG4gICAgdGhpcy50cmFuc3BvcnRlciA9IG5vZGVtYWlsZXIuY3JlYXRlVHJhbnNwb3J0KHtcbiAgICAgIGhvc3Q6IHByb2Nlc3MuZW52LlNNVFBfSE9TVCB8fCAnc210cC5nbWFpbC5jb20nLFxuICAgICAgcG9ydDogcHJvY2Vzcy5lbnYuU01UUF9QT1JUIHx8IDU4NyxcbiAgICAgIHNlY3VyZTogZmFsc2UsIC8vIHRydWUgZm9yIDQ2NSwgZmFsc2UgZm9yIG90aGVyIHBvcnRzXG4gICAgICBhdXRoOiB7XG4gICAgICAgIHVzZXI6IHByb2Nlc3MuZW52LlNNVFBfVVNFUixcbiAgICAgICAgcGFzczogcHJvY2Vzcy5lbnYuU01UUF9QQVNTXG4gICAgICB9XG4gICAgfSk7XG4gIH1cblxuICBhc3luYyBzZW5kUGFzc3dvcmRSZXNldEVtYWlsKGVtYWlsLCByZXNldFRva2VuKSB7XG4gICAgY29uc3QgcmVzZXRVcmwgPSBgJHtwcm9jZXNzLmVudi5GUk9OVEVORF9VUkwgfHwgJ2h0dHA6Ly9sb2NhbGhvc3Q6MzAwMCd9L3Jlc2V0LXBhc3N3b3JkLyR7cmVzZXRUb2tlbn1gO1xuXG4gICAgY29uc3QgbWFpbE9wdGlvbnMgPSB7XG4gICAgICBmcm9tOiB7XG4gICAgICAgIG5hbWU6ICdDaGF0LUpTIFN1cHBvcnQnLFxuICAgICAgICBhZGRyZXNzOiBwcm9jZXNzLmVudi5TTVRQX1VTRVJcbiAgICAgIH0sXG4gICAgICB0bzogZW1haWwsXG4gICAgICBzdWJqZWN0OiAnUGFzc3dvcmQgUmVzZXQgUmVxdWVzdCAtIENoYXQtSlMnLFxuICAgICAgaHRtbDogYFxuICAgICAgICA8IURPQ1RZUEUgaHRtbD5cbiAgICAgICAgPGh0bWwgbGFuZz1cImVuXCI+XG4gICAgICAgIDxoZWFkPlxuICAgICAgICAgICAgPG1ldGEgY2hhcnNldD1cIlVURi04XCI+XG4gICAgICAgICAgICA8bWV0YSBuYW1lPVwidmlld3BvcnRcIiBjb250ZW50PVwid2lkdGg9ZGV2aWNlLXdpZHRoLCBpbml0aWFsLXNjYWxlPTEuMFwiPlxuICAgICAgICAgICAgPHRpdGxlPlBhc3N3b3JkIFJlc2V0PC90aXRsZT5cbiAgICAgICAgICAgIDxzdHlsZT5cbiAgICAgICAgICAgICAgICBib2R5IHsgZm9udC1mYW1pbHk6IEFyaWFsLCBzYW5zLXNlcmlmOyBsaW5lLWhlaWdodDogMS42OyBjb2xvcjogIzMzMzsgfVxuICAgICAgICAgICAgICAgIC5jb250YWluZXIgeyBtYXgtd2lkdGg6IDYwMHB4OyBtYXJnaW46IDAgYXV0bzsgcGFkZGluZzogMjBweDsgfVxuICAgICAgICAgICAgICAgIC5oZWFkZXIgeyBiYWNrZ3JvdW5kOiBsaW5lYXItZ3JhZGllbnQoMTM1ZGVnLCAjNjY3ZWVhIDAlLCAjNzY0YmEyIDEwMCUpOyBjb2xvcjogd2hpdGU7IHBhZGRpbmc6IDIwcHg7IGJvcmRlci1yYWRpdXM6IDEwcHggMTBweCAwIDA7IH1cbiAgICAgICAgICAgICAgICAuY29udGVudCB7IGJhY2tncm91bmQ6ICNmOGY5ZmE7IHBhZGRpbmc6IDIwcHg7IGJvcmRlcjogMXB4IHNvbGlkICNkZWUyZTY7IH1cbiAgICAgICAgICAgICAgICAuYnV0dG9uIHsgZGlzcGxheTogaW5saW5lLWJsb2NrOyBwYWRkaW5nOiAxMnB4IDI0cHg7IGJhY2tncm91bmQ6ICMwMDdiZmY7IGNvbG9yOiB3aGl0ZTsgdGV4dC1kZWNvcmF0aW9uOiBub25lOyBib3JkZXItcmFkaXVzOiA1cHg7IG1hcmdpbjogMjBweCAwOyB9XG4gICAgICAgICAgICAgICAgLmZvb3RlciB7IGJhY2tncm91bmQ6ICM2Yzc1N2Q7IGNvbG9yOiB3aGl0ZTsgcGFkZGluZzogMjBweDsgYm9yZGVyLXJhZGl1czogMCAwIDEwcHggMTBweDsgZm9udC1zaXplOiAxMnB4OyB9XG4gICAgICAgICAgICA8L3N0eWxlPlxuICAgICAgICA8L2hlYWQ+XG4gICAgICAgIDxib2R5PlxuICAgICAgICAgICAgPGRpdiBjbGFzcz1cImNvbnRhaW5lclwiPlxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9XCJoZWFkZXJcIj5cbiAgICAgICAgICAgICAgICAgICAgPGgyPlBhc3N3b3JkIFJlc2V0IFJlcXVlc3Q8L2gyPlxuICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9XCJjb250ZW50XCI+XG4gICAgICAgICAgICAgICAgICAgIDxwPllvdSBoYXZlIHJlcXVlc3RlZCB0byByZXNldCB5b3VyIHBhc3N3b3JkIGZvciB5b3VyIENoYXQtSlMgYWNjb3VudC48L3A+XG4gICAgICAgICAgICAgICAgICAgIDxwPlBsZWFzZSBjbGljayB0aGUgYnV0dG9uIGJlbG93IHRvIHJlc2V0IHlvdXIgcGFzc3dvcmQ6PC9wPlxuXG4gICAgICAgICAgICAgICAgICAgIDxhIGhyZWY9XCIke3Jlc2V0VXJsfVwiIGNsYXNzPVwiYnV0dG9uXCI+UmVzZXQgUGFzc3dvcmQ8L2E+XG5cbiAgICAgICAgICAgICAgICAgICAgPHA+PHN0cm9uZz5UaGlzIGxpbmsgd2lsbCBleHBpcmUgaW4gMSBob3VyLjwvc3Ryb25nPjwvcD5cblxuICAgICAgICAgICAgICAgICAgICA8cD5JZiB5b3UgZGlkIG5vdCByZXF1ZXN0IHRoaXMgcGFzc3dvcmQgcmVzZXQsIHBsZWFzZSBpZ25vcmUgdGhpcyBlbWFpbC48L3A+XG5cbiAgICAgICAgICAgICAgICAgICAgPHA+Rm9yIHNlY3VyaXR5IHJlYXNvbnMsIHRoaXMgbGluayBjYW4gb25seSBiZSB1c2VkIG9uY2UuPC9wPlxuICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9XCJmb290ZXJcIj5cbiAgICAgICAgICAgICAgICAgICAgPHA+SWYgdGhlIGJ1dHRvbiBkb2Vzbid0IHdvcmssIGNvcHkgYW5kIHBhc3RlIHRoaXMgVVJMIGludG8geW91ciBicm93c2VyOjwvcD5cbiAgICAgICAgICAgICAgICAgICAgPHA+JHtyZXNldFVybH08L3A+XG4gICAgICAgICAgICAgICAgICAgIDxwPiZjb3B5OyAyMDI0IENoYXQtSlMuIEFsbCByaWdodHMgcmVzZXJ2ZWQuPC9wPlxuICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgIDwvYm9keT5cbiAgICAgICAgPC9odG1sPlxuICAgICAgYCxcbiAgICAgIHRleHQ6IGBcbiAgICAgICAgUGFzc3dvcmQgUmVzZXQgUmVxdWVzdCAtIENoYXQtSlNcblxuICAgICAgICBZb3UgaGF2ZSByZXF1ZXN0ZWQgdG8gcmVzZXQgeW91ciBwYXNzd29yZC5cblxuICAgICAgICBQbGVhc2UgdXNlIHRoZSBmb2xsb3dpbmcgbGluayB0byByZXNldCB5b3VyIHBhc3N3b3JkOlxuICAgICAgICAke3Jlc2V0VXJsfVxuXG4gICAgICAgIFRoaXMgbGluayB3aWxsIGV4cGlyZSBpbiAxIGhvdXIuXG5cbiAgICAgICAgSWYgeW91IGRpZCBub3QgcmVxdWVzdCB0aGlzIHBhc3N3b3JkIHJlc2V0LCBwbGVhc2UgaWdub3JlIHRoaXMgZW1haWwuXG5cbiAgICAgICAgQmVzdCByZWdhcmRzLFxuICAgICAgICBDaGF0LUpTIFN1cHBvcnQgVGVhbVxuICAgICAgYFxuICAgIH07XG5cbiAgICB0cnkge1xuICAgICAgY29uc3QgaW5mbyA9IGF3YWl0IHRoaXMudHJhbnNwb3J0ZXIuc2VuZE1haWwobWFpbE9wdGlvbnMpO1xuICAgICAgY29uc29sZS5sb2coJ1Bhc3N3b3JkIHJlc2V0IGVtYWlsIHNlbnQ6JywgaW5mby5tZXNzYWdlSWQpO1xuICAgICAgcmV0dXJuIHsgc3VjY2VzczogdHJ1ZSwgbWVzc2FnZUlkOiBpbmZvLm1lc3NhZ2VJZCB9O1xuICAgIH0gY2F0Y2ggKGVycm9yKSB7XG4gICAgICBjb25zb2xlLmVycm9yKCdFcnJvciBzZW5kaW5nIHBhc3N3b3JkIHJlc2V0IGVtYWlsOicsIGVycm9yKTtcbiAgICAgIHRocm93IGVycm9yO1xuICAgIH1cbiAgfVxuXG4gIGFzeW5jIHNlbmRQYXNzd29yZFJlc2V0U3VjY2Vzc0VtYWlsKGVtYWlsKSB7XG4gICAgY29uc3QgbWFpbE9wdGlvbnMgPSB7XG4gICAgICBmcm9tOiB7XG4gICAgICAgIG5hbWU6ICdDaGF0LUpTIFN1cHBvcnQnLFxuICAgICAgICBhZGRyZXNzOiBwcm9jZXNzLmVudi5TTVRQX1VTRVJcbiAgICAgIH0sXG4gICAgICB0bzogZW1haWwsXG4gICAgICBzdWJqZWN0OiAnUGFzc3dvcmQgUmVzZXQgU3VjY2Vzc2Z1bCAtIENoYXQtSlMnLFxuICAgICAgaHRtbDogYFxuICAgICAgICA8IURPQ1RZUEUgaHRtbD5cbiAgICAgICAgPGh0bWwgbGFuZz1cImVuXCI+XG4gICAgICAgIDxoZWFkPlxuICAgICAgICAgICAgPG1ldGEgY2hhcnNldD1cIlVURi04XCI+XG4gICAgICAgICAgICA8bWV0YSBuYW1lPVwidmlld3BvcnRcIiBjb250ZW50PVwid2lkdGg9ZGV2aWNlLXdpZHRoLCBpbml0aWFsLXNjYWxlPTEuMFwiPlxuICAgICAgICAgICAgPHRpdGxlPlBhc3N3b3JkIFJlc2V0IFN1Y2Nlc3NmdWw8L3RpdGxlPlxuICAgICAgICAgICAgPHN0eWxlPlxuICAgICAgICAgICAgICAgIGJvZHkgeyBmb250LWZhbWlseTogQXJpYWwsIHNhbnMtc2VyaWY7IGxpbmUtaGVpZ2h0OiAxLjY7IGNvbG9yOiAjMzMzOyB9XG4gICAgICAgICAgICAgICAgLmNvbnRhaW5lciB7IG1heC13aWR0aDogNjAwcHg7IG1hcmdpbjogMCBhdXRvOyBwYWRkaW5nOiAyMHB4OyB9XG4gICAgICAgICAgICAgICAgLmhlYWRlciB7IGJhY2tncm91bmQ6IGxpbmVhci1ncmFkaWVudCgxMzVkZWcsICMyOGE3NDUgMCUsICMyMGM5OTcgMTAwJSk7IGNvbG9yOiB3aGl0ZTsgcGFkZGluZzogMjBweDsgYm9yZGVyLXJhZGl1czogMTBweCAxMHB4IDAgMDsgfVxuICAgICAgICAgICAgICAgIC5jb250ZW50IHsgYmFja2dyb3VuZDogI2Y4ZjlmYTsgcGFkZGluZzogMjBweDsgYm9yZGVyOiAxcHggc29saWQgI2RlZTJlNjsgfVxuICAgICAgICAgICAgICAgIC5mb290ZXIgeyBiYWNrZ3JvdW5kOiAjNmM3NTdkOyBjb2xvcjogd2hpdGU7IHBhZGRpbmc6IDIwcHg7IGJvcmRlci1yYWRpdXM6IDAgMCAxMHB4IDEwcHg7IGZvbnQtc2l6ZTogMTJweDsgfVxuICAgICAgICAgICAgPC9zdHlsZT5cbiAgICAgICAgPC9oZWFkPlxuICAgICAgICA8Ym9keT5cbiAgICAgICAgICAgIDxkaXYgY2xhc3M9XCJjb250YWluZXJcIj5cbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzPVwiaGVhZGVyXCI+XG4gICAgICAgICAgICAgICAgICAgIDxoMj5QYXNzd29yZCBSZXNldCBTdWNjZXNzZnVsPC9oMj5cbiAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzPVwiY29udGVudFwiPlxuICAgICAgICAgICAgICAgICAgICA8cD5Zb3VyIHBhc3N3b3JkIGhhcyBiZWVuIHN1Y2Nlc3NmdWxseSByZXNldCE8L3A+XG4gICAgICAgICAgICAgICAgICAgIDxwPllvdSBjYW4gbm93IHNpZ24gaW4gdG8geW91ciBDaGF0LUpTIGFjY291bnQgd2l0aCB5b3VyIG5ldyBwYXNzd29yZC48L3A+XG4gICAgICAgICAgICAgICAgICAgIDxwPklmIHlvdSBkaWQgbm90IG1ha2UgdGhpcyBjaGFuZ2UsIHBsZWFzZSBjb250YWN0IG91ciBzdXBwb3J0IHRlYW0gaW1tZWRpYXRlbHkuPC9wPlxuICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9XCJmb290ZXJcIj5cbiAgICAgICAgICAgICAgICAgICAgPHA+JmNvcHk7IDIwMjQgQ2hhdC1KUy4gQWxsIHJpZ2h0cyByZXNlcnZlZC48L3A+XG4gICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgPC9ib2R5PlxuICAgICAgICA8L2h0bWw+XG4gICAgICBgLFxuICAgICAgdGV4dDogYFxuICAgICAgICBQYXNzd29yZCBSZXNldCBTdWNjZXNzZnVsIC0gQ2hhdC1KU1xuXG4gICAgICAgIFlvdXIgcGFzc3dvcmQgaGFzIGJlZW4gc3VjY2Vzc2Z1bGx5IHJlc2V0IVxuXG4gICAgICAgIFlvdSBjYW4gbm93IHNpZ24gaW4gdG8geW91ciBDaGF0LUpTIGFjY291bnQgd2l0aCB5b3VyIG5ldyBwYXNzd29yZC5cblxuICAgICAgICBJZiB5b3UgZGlkIG5vdCBtYWtlIHRoaXMgY2hhbmdlLCBwbGVhc2UgY29udGFjdCBvdXIgc3VwcG9ydCB0ZWFtIGltbWVkaWF0ZWx5LlxuXG4gICAgICAgIEJlc3QgcmVnYXJkcyxcbiAgICAgICAgQ2hhdC1KUyBTdXBwb3J0IFRlYW1cbiAgICAgIGBcbiAgICB9O1xuXG4gICAgdHJ5IHtcbiAgICAgIGNvbnN0IGluZm8gPSBhd2FpdCB0aGlzLnRyYW5zcG9ydGVyLnNlbmRNYWlsKG1haWxPcHRpb25zKTtcbiAgICAgIGNvbnNvbGUubG9nKCdQYXNzd29yZCByZXNldCBzdWNjZXNzIGVtYWlsIHNlbnQ6JywgaW5mby5tZXNzYWdlSWQpO1xuICAgICAgcmV0dXJuIHsgc3VjY2VzczogdHJ1ZSwgbWVzc2FnZUlkOiBpbmZvLm1lc3NhZ2VJZCB9O1xuICAgIH0gY2F0Y2ggKGVycm9yKSB7XG4gICAgICBjb25zb2xlLmVycm9yKCdFcnJvciBzZW5kaW5nIHBhc3N3b3JkIHJlc2V0IHN1Y2Nlc3MgZW1haWw6JywgZXJyb3IpO1xuICAgICAgdGhyb3cgZXJyb3I7XG4gICAgfVxuICB9XG59XG5cbm1vZHVsZS5leHBvcnRzID0gbmV3IEVtYWlsU2VydmljZSgpOyJdLCJtYXBwaW5ncyI6Ijs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7SUFlWTtJQUFBQSxjQUFBLFlBQUFBLENBQUE7TUFBQSxPQUFBQyxj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

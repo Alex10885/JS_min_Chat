@@ -175,7 +175,9 @@ describe('Middleware Tests', () => {
 
   afterAll(async () => {
     await mongoose.disconnect();
-    await mongoServer.stop();
+    if (mongoServer) {
+      await mongoServer.stop();
+    }
   });
 
   beforeEach(async () => {
@@ -256,26 +258,6 @@ describe('Middleware Tests', () => {
     });
   });
 
-  describe('CORS Middleware', () => {
-    it('should handle CORS preflight requests', async () => {
-      const response = await request(app)
-        .options('/test-cors')
-        .set('Origin', 'http://localhost:3000')
-        .set('Access-Control-Request-Method', 'GET')
-        .expect(204);
-
-      expect(response.headers['access-control-allow-origin']).toBeDefined();
-    });
-
-    it('should include CORS headers in response', async () => {
-      const response = await request(app)
-        .get('/test-cors')
-        .set('Origin', 'http://localhost:3000')
-        .expect(200);
-
-      expect(response.headers['access-control-allow-origin']).toBeDefined();
-    });
-  });
 
   describe('CORS Middleware', () => {
     it('should handle CORS preflight requests', async () => {

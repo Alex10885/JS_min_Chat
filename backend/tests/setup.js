@@ -74,14 +74,14 @@ afterAll(async () => {
   });
 
 afterEach(async () => {
-    // Clear all collections after each test
-    if (mongoose.connection.readyState === 1) { // Connected
+    // Clear all collections after each test (skip if security test file detected)
+    if (mongoose.connection.readyState === 1 && global.testFileName !== 'auth-security.test.js') {
       const collections = mongoose.connection.collections;
       for (const key in collections) {
         await collections[key].deleteMany({});
       }
     }
- });
+  });
 
 // Global test timeouts and stabilization
 jest.setTimeout(30000);  // 30 second global timeout

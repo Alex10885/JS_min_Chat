@@ -26,9 +26,9 @@
       "<rootDir>/tests/**/*.test.js"
     ],
     "collectCoverageFrom": [
-      "backend/models/**/*.js",
-      "backend/src/**/*.js",
-      "!backend/src/server/server.js",
+      "models/**/*.js",
+      "src/**/*.js",
+      "!src/server/server.js",
       "!**/node_modules/**",
       "!**/tests/**",
       "!server.js"

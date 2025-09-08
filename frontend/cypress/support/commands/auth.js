@@ -3,7 +3,7 @@
 Cypress.Commands.add('login', (identifier, password) => {
   cy.request({
     method: 'POST',
-    url: `${Cypress.env('apiUrl') || 'http://localhost:3001'}/api/login`,
+    url: 'http://localhost:3001/api/login',
     body: { identifier, password },
     failOnStatusCode: false
   }).then((response) => {
@@ -25,7 +25,7 @@ Cypress.Commands.add('login', (identifier, password) => {
 Cypress.Commands.add('register', (nickname, email, password) => {
   cy.request({
     method: 'POST',
-    url: `${Cypress.env('apiUrl') || 'http://localhost:3001'}/api/register`,
+    url: 'http://localhost:3001/api/register',
     body: { nickname, email, password },
     failOnStatusCode: false
   }).then((response) => {
@@ -56,7 +56,7 @@ Cypress.Commands.add('loginAndSetup', (userData = null) => {
   // First try login, if fails then register
   cy.request({
     method: 'POST',
-    url: `${Cypress.env('apiUrl') || 'http://localhost:3001'}/api/login`,
+    url: `${Cypress.config().baseUrl}/api/login`,
     body: { identifier: user.identifier, password: user.password },
     failOnStatusCode: false
   }).then((loginResponse) => {
@@ -71,10 +71,10 @@ Cypress.Commands.add('loginAndSetup', (userData = null) => {
       // Register new user
       return cy.request({
         method: 'POST',
-        url: `${Cypress.env('apiUrl') || 'http://localhost:3001'}/api/register`,
+        url: `${Cypress.config().baseUrl}/api/register`,
         body: {
           nickname: user.identifier,
-          email: `${user.identifier}@example.com`,
+          email: `${user.identifier}@exemplar.com`,
           password: user.password
         },
         failOnStatusCode: false

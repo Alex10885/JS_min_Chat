@@ -3,18 +3,20 @@ const BasePage = require('./BasePage');
 class LoginPage extends BasePage {
   constructor() {
     super('/');
-    this.container = '.login-container, form, [data-testid="auth-form"]';
+    this.container = '[role="dialog"] .MuiDialog-paper, form, [role="presentation"]';
 
-    // Define selectors
+    // Define selectors for Material-UI AuthForm
     this.selectors = {
-      nicknameInput: 'input[placeholder*="nickname"], input[type="text"]:first',
-      emailInput: 'input[type="email"]',
-      passwordInput: 'input[type="password"]',
-      loginTab: 'button, [role="tab"]:contains("Login")',
-      registerTab: 'button, [role="tab"]:contains("Register")',
-      submitButton: 'button[type="submit"], button:contains("Login"), button:contains("Register")',
-      errorMessage: '.error, .alert, [role="alert"]',
-      authForm: 'form'
+      nicknameInput: 'form input[type="text"]', // First text input for nickname
+      emailInput: 'form input[type="email"]',
+      passwordInput: 'form input[type="password"]',
+      identifierInput: 'form input[type="text"]:not([aria-label="Nickname"])', // For login mode
+      loginTab: '[role="tab"]:contains("Login")',
+      registerTab: '[role="tab"]:contains("Register")',
+      submitButton: '[role="dialog"] button[type="submit"]',
+      errorMessage: '[role="dialog"] .MuiTypography-colorError, [role="dialog"] p.MuiTypography-body2[style*="color: red"]',
+      authForm: '[data-testid="auth-form"]',
+      dialog: '[role="dialog"]'
     };
   }
 

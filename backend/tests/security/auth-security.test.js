@@ -5,7 +5,7 @@ let app, closeDB;
 
 beforeAll(async () => {
   // Import app for testing
-  const serverModule = require('../../server');
+  global.testFileName = 'auth-security.test.js';
   app = require('../../server.js');
 
   const { closeDB: closeDBFn } = require('../../db/connection');

@@ -215,6 +215,45 @@ export const createAxiosMock = () => ({
   },
 });
 
+// Basic test to satisfy Jest's requirement for test suites
+describe('Mock Utilities', () => {
+ test('should export mock creation functions', () => {
+   expect(typeof createWebRTCMocks).toBe('function');
+   expect(typeof createSocketMocks).toBe('function');
+   expect(typeof createReactMocks).toBe('function');
+   expect(typeof createAxiosMock).toBe('function');
+ });
+
+ test('should create WebRTC mocks correctly', () => {
+   const mocks = createWebRTCMocks();
+   expect(mocks).toHaveProperty('RTCPeerConnection');
+   expect(mocks).toHaveProperty('RTCIceCandidate');
+   expect(mocks).toHaveProperty('RTCSessionDescription');
+   expect(mocks).toHaveProperty('navigator');
+ });
+
+ test('should create socket mocks correctly', () => {
+   const mocks = createSocketMocks();
+   expect(mocks).toHaveProperty('socket');
+   expect(mocks).toHaveProperty('io');
+   expect(mocks.socket).toHaveProperty('on');
+   expect(mocks.socket).toHaveProperty('emit');
+ });
+
+ test('MockEventEmitter should work correctly', () => {
+   const emitter = new MockEventEmitter();
+   const mockCallback = jest.fn();
+
+   emitter.on('test', mockCallback);
+   emitter.emit('test', 'data');
+   expect(mockCallback).toHaveBeenCalledWith('data');
+
+   emitter.off('test', mockCallback);
+   emitter.emit('test', 'more data');
+   expect(mockCallback).toHaveBeenCalledTimes(1); // Should not be called again
+ });
+});
+
 // Local storage mock
 export const createLocalStorageMock = () => ({
   localStorage: {
