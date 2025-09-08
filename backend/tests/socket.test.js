@@ -3,15 +3,12 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const { connectDB, closeDB } = require('../db/connection');
 const User = require('../models/User');
-const Message = require('../models/Message');
-const Channel = require('../models/Channel');
 const SocketTestServer = require('./socket-server.test');
 
 let testServer;
 let testUser;
 let testToken;
 let clientSocket;
-const PORT = 3003; // Use running server port
 
 let serverPort;
 

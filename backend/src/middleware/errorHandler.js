@@ -21,7 +21,7 @@ const logger = winston.createLogger({
 });
 
 // Error handling middleware
-const errorHandler = (err, req, res, next) => {
+const errorHandler = (err, req, res, _next) => {
   logger.error('Unhandled error:', {
     message: err.message,
     stack: err.stack,

@@ -1,5 +1,14 @@
 # API Documentation
 
+## GET /api/users
+
+Get list of all registered users
+
+**Response:**
+```json
+{}
+```
+
 ## POST /api/login
 
 Login existing user
@@ -21,4 +30,8 @@ Get list of channels
 ```json
 {}
 ```
+
+## POST /api/channels
+
+Create a new channel
 

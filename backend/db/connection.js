@@ -119,8 +119,6 @@ const connectDB = async (retries = 5) => {
         socketTimeoutMS: 45000,
         connectTimeoutMS: 30000,
         heartbeatFrequencyMS: 10000, // Check health every 10 seconds
-        bufferMaxEntries: 0,       // Disable mongoose buffering
-        bufferCommands: false,     // Disable mongoose buffering
       });
 
       const connectTime = performance.now() - startTime;

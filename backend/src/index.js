@@ -3,7 +3,7 @@ const serverFactory = require('./server/index');
 
 async function main() {
   try {
-    const server = await serverFactory.start();
+    await serverFactory.start();
 
     console.log('🎉 Server started successfully with new architecture!');
     console.log('📋 Available endpoints:');

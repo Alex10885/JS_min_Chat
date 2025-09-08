@@ -2,6 +2,7 @@ const request = require('supertest');
 const express = require('express');
 const cors = require('cors');
 const { body, validationResult } = require('express-validator');
+const jwt = require('jsonwebtoken');
 
 // Import models
 const User = require('../../models/User');

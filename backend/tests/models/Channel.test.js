@@ -208,6 +208,7 @@ describe('Channel Model', () => {
 
       const sortedChannels = await Channel.find().sort({ position: 1 });
 
+      expect(sortedChannels.length).toBe(3);
       expect(sortedChannels[0].position).toBe(0);
       expect(sortedChannels[1].position).toBe(1);
       expect(sortedChannels[2].position).toBe(2);
@@ -227,9 +228,8 @@ describe('Channel Model', () => {
 
       // Update position
       savedChannel.position = 10;
-      await savedChannel.save();
+      const updatedChannel = await savedChannel.save();
 
-      const updatedChannel = await Channel.findById(savedChannel._id);
       expect(updatedChannel.position).toBe(10);
     });
   });
@@ -1077,7 +1077,7 @@ describe('Channel Model', () => {
         description: 'Привет мир! 你好世界! 🌍'
       });
 
-      const saved = await channel.save();
+      const saved = await unicodeChannel.save();
       expect(saved.id).toBe('unicode-тест-测试');
       expect(saved.name).toBe('Юникод Канал 测试');
       expect(saved.createdBy).toBe('тест用戶');

@@ -147,7 +147,7 @@ userSchema.methods.resetPassword = function(token, newPassword) {
 };
 
 // Ban user
-userSchema.methods.ban = function(reason, duration = null, issuedBy = null) {
+userSchema.methods.ban = function(reason, duration = null, _issuedBy = null) {
   this.banned = true;
   this.banReason = reason;
   if (duration) {
@@ -273,4 +273,5 @@ userSchema.methods.toJSON = function() {
   return userObject;
 };
 
-module.exports = mongoose.model('User', userSchema);
+// Prevent OverwriteModelError by checking existing models
+module.exports = mongoose.models.User || mongoose.model('User', userSchema);

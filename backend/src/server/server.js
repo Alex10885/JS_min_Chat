@@ -13,10 +13,7 @@ const swaggerSpec = require('../config/swagger');
 
 // Import middleware
 const {
-  authenticateSession,
-  authenticateToken,
-  requireModerator,
-  requireAdmin
+  authenticateSession
 } = require('../middleware/auth');
 const {
   errorHandler,
@@ -30,10 +27,7 @@ const { geographicRateLimiter, sessionFingerprint, checkSessionInactivity } = re
 
 // Import rate limiters
 const {
-  authRateLimiter,
-  apiRateLimiter,
-  generalRateLimiter,
-  passwordResetRateLimiter
+  generalRateLimiter
 } = require('../config/rateLimit');
 
 // Import routes
@@ -231,7 +225,7 @@ class Server {
     // Socket authentication middleware
     this.io.use(async (socket, next) => {
       try {
-        const { csrfToken, sessionId } = socket.handshake.auth;
+        const { csrfToken, sessionId: _sessionId } = socket.handshake.auth;
         const session = socket.request.session;
 
         if (!session || !session.authenticated || !session.userId) {

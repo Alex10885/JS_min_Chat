@@ -3,11 +3,17 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const config = require('../config');
 const { logger } = require('../middleware/auth');
-const { connectDB, closeDB } = require('../../db/connection');
+// Removed unused imports
 const winston = require('winston');
 const { redisManager } = require('../config/redis');
 const rateLimit = require('express-rate-limit');
-const RedisStore = require('rate-limit-redis');
+let RedisStore;
+try {
+  RedisStore = require('rate-limit-redis');
+} catch (e) {
+  // rate-limit-redis not available, use memory store
+  RedisStore = null;
+}
 
 class AuthService {
   constructor() {
@@ -32,7 +38,7 @@ class AuthService {
     try {
       const redisStore = redisManager.getClient();
 
-      if (redisStore) {
+      if (redisStore && RedisStore) {
         // Enhanced authentication rate limiter with Redis store
         this.authRateLimiter = rateLimit({
           store: new RedisStore({
@@ -49,7 +55,7 @@ class AuthService {
           skip: (req) => {
             return req.get('User-Agent') && req.get('User-Agent').includes('Cypress');
           },
-          onLimitReached: (req, res) => {
+          onLimitReached: (req, _res) => {
             this.logger.warn('Authentication rate limit reached', {
               ip: req.ip,
               userAgent: req.get('User-Agent'),
@@ -60,11 +66,11 @@ class AuthService {
 
         // API rate limiter
         this.apiRateLimiter = rateLimit({
-          store: new RedisStore({
+          store: RedisStore ? new RedisStore({
             client: redisStore,
             prefix: 'api_limit:',
             expiry: 15 * 60
-          }),
+          }) : undefined, // Will fallback to memory store
           windowMs: 15 * 60 * 1000, // 15 minutes
           max: config.redisDisabled ? 1000 : 200, // Increased for better reliability
           message: { error: 'Too many requests, please try again later.' },
@@ -108,7 +114,7 @@ class AuthService {
             expiry: 5 * 60 // 5 minutes
           }),
           windowMs: 5 * 60 * 1000, // 5 minutes
-          max: async (req, res) => {
+          max: async (req, _res) => {
             return await this.calculateDynamicLimit(req);
           },
           message: { error: 'Rate limit exceeded based on behavior analysis' },
@@ -896,7 +902,7 @@ class AuthService {
   }
 
   // Handle login with session creation (extracted from server.js)
-  async handleLoginWithSession(identifier, password, req, res, connectionManager = null) {
+  async handleLoginWithSession(identifier, password, req, res, _connectionManager = null) {
     try {
       console.log('🔑 Incoming login request:', { identifier: identifier, hasPassword: !!password, ip: req.ip });
 

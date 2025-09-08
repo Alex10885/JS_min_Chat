@@ -35,6 +35,9 @@ const {
 // Import AuthService for extracted authentication logic
 const authService = require('./src/services/authService');
 
+// Extract rate limiters from AuthService
+const { authRateLimiter, apiRateLimiter, generalRateLimiter } = authService;
+
 // Import models
 const User = require('./models/User');
 const Message = require('./models/Message');

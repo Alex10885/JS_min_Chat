@@ -1,5 +1,4 @@
 const { performance, PerformanceObserver } = require('perf_hooks');
-const { getCachedStats } = require('../config/redis');
 const winston = require('winston');
 
 // Performance monitoring middleware
@@ -121,7 +120,7 @@ class PerformanceMonitor {
   // Database query performance monitoring middleware
   dbQueryPerformanceMiddleware() {
     return async function dbQueryObserver(query, options) {
-      const start = performance.mark('query-start');
+      performance.mark('query-start');
       try {
         const result = await query();
         performance.mark('query-end');

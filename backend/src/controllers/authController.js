@@ -172,7 +172,6 @@ class AuthController {
     try {
       console.log('🚪 Session logout request, sessionId:', req.sessionId);
 
-      const hasJwtAuth = !!req.user;
       const hasSessionAuth = req.sessionUser || (req.session && req.session.authenticated);
 
       if (hasSessionAuth && req.session) {

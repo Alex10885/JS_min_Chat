@@ -1,10 +1,11 @@
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
+const { exec } = require('child_process');
 const { connectDB, closeDB } = require('../db/connection');
 const { TestFixtures } = require('./shared/testFixtures');
 
+
 let originalMongoUri;
-let mongod;
+let mongodProcess;
 
 beforeAll(async () => {
     // Enable garbage collection for performance optimization
@@ -15,20 +16,36 @@ beforeAll(async () => {
     // Save original MongoDB URI
     originalMongoUri = process.env.MONGODB_URI;
 
-    // Start in-memory MongoDB server for tests with compatible version
-    mongod = await MongoMemoryServer.create({
-      binary: {
-        version: '6.0.9' // Compatible version for debian-x64
-      }
-    });
-    const mongoUri = mongod.getUri();
+    // Check if mongod is running
+    const isMongodRunning = () => {
+      return new Promise((resolve) => {
+        exec('pgrep mongod', (error) => {
+          resolve(!error);
+        });
+      });
+    };
+
+    // If mongod is not running, start it
+    if (!(await isMongodRunning())) {
+      console.log('Starting mongod...');
+      mongodProcess = exec('mongod --port 27017 --dbpath /tmp/mongodb_test --logpath /tmp/mongod_test.log --fork', (error) => {
+        if (error) {
+          console.error('Failed to start mongod:', error);
+          throw error;
+        }
+      });
+      // Wait a bit for mongod to start
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    } else {
+      console.log('mongod is already running');
+    }
 
     // Set test environment variables
     process.env.NODE_ENV = 'test';
-    process.env.MONGODB_URI = mongoUri;
+    process.env.MONGODB_URI = 'mongodb://localhost:27017/chatjs_test';
     process.env.JWT_SECRET = 'your_super_secure_jwt_secret_key_here_replace_in_production';
 
-    // Connect to in-memory test database
+    // Connect to local test database
     await connectDB();
 
     // Setup reusable fixtures for faster test execution
@@ -41,9 +58,10 @@ afterAll(async () => {
      await TestFixtures.cleanup();
      await closeDB();
 
-     // Stop the in-memory MongoDB server
-     if (mongod) {
-       await mongod.stop();
+     // Stop mongod if we started it
+     if (mongodProcess) {
+       console.log('Stopping mongod...');
+       exec('pkill -f mongod');
      }
 
      // Restore original URI if needed
@@ -53,7 +71,7 @@ afterAll(async () => {
      if (global.gc) {
        global.gc();
      }
- });
+  });
 
 afterEach(async () => {
     // Clear all collections after each test

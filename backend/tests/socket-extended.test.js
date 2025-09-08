@@ -11,10 +11,11 @@ function waitForEvent(socket, eventName, timeout = 5000, retryCount = 3) {
   return new Promise((resolve, reject) => {
     let resolved = false;
     let attempts = 0;
+    let currentTimeoutId = null;
 
     const cleanup = () => {
       socket.off(eventName, eventHandler);
-      clearTimeout(timeoutId);
+      if (currentTimeoutId) clearTimeout(currentTimeoutId);
     };
 
     const eventHandler = (data) => {
@@ -28,7 +29,7 @@ function waitForEvent(socket, eventName, timeout = 5000, retryCount = 3) {
     const tryWait = () => {
       if (resolved || attempts >= retryCount) return;
 
-      const timeoutId = setTimeout(() => {
+      currentTimeoutId = setTimeout(() => {
         if (!resolved) {
           attempts++;
           if (attempts < retryCount) {
@@ -58,10 +59,12 @@ function waitForSocketConnection(socket, timeout = 5000) {
     }
 
     let resolved = false;
+    let currentTimeoutId = null;
+
     let cleanup = () => {
       socket.off('connect', connectHandler);
       socket.off('connect_error', errorHandler);
-      clearTimeout(timeoutId);
+      if (currentTimeoutId) clearTimeout(currentTimeoutId);
     };
 
     const connectHandler = () => {
@@ -80,7 +83,7 @@ function waitForSocketConnection(socket, timeout = 5000) {
       }
     };
 
-    const timeoutId = setTimeout(() => {
+    currentTimeoutId = setTimeout(() => {
       if (!resolved) {
         resolved = true;
         cleanup();

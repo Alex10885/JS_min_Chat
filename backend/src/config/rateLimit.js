@@ -25,7 +25,7 @@ const authRateLimiter = rateLimit({
 
     return baseLimit;
   },
-  message: (req, res) => {
+  message: (req, _res) => {
     const attempts = req.rateLimit?.remainingHit || 0;
     const delay = progressiveDelay(config.rateLimit.maxAuth - attempts);
     return {
