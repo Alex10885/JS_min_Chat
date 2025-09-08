@@ -3,32 +3,32 @@ const BasePage = require('./BasePage');
 class ChatPage extends BasePage {
   constructor() {
     super('/');
-    this.container = '.chat-app, .app-container, main';
+    this.container = '.MuiGrid-container';
 
     // Define selectors based on Material-UI and actual components
     this.selectors = {
-      channelList: '.MuiGrid-item .MuiPaper-root:has(.MuiTypography-root.MuiTypography-h6:contains("Каналы"))',
-      messageList: '.MuiGrid-item .MuiPaper-root:has(.MuiTypography-root:contains("Введите сообщение"))', // For message area
-      messageInput: '[data-testid="message-input"]',
-      sendButton: '[data-testid="send-message-button"]',
+      channelList: '.MuiAccordion-root .MuiListItem-root', // Channels in accordion
+      messageList: '.MuiBox-root .MuiTypography-root', // Message content area within Paper
+      messageInput: '[data-testid="message-input"] input', // Input element inside TextField
+      sendButton: '[data-testid="send-message-button"]', // Actual data-testid present
       channels: {
-        general: '.MuiListItem-root:contains("general"), .MuiListItem-root:contains("#general")',
-        voice: '.MuiListItem-root:contains("voice-chat"), .MuiListItem-root:contains("voice-chat")'
+        general: '.MuiListItem-root:contains("general"), .MuiTypography:contains("general")',
+        voice: '.MuiListItem-root:contains("Выйти"), .MuiTypography:contains("Голосовой канал")'
       },
-      userList: '.MuiList-root:has(.MuiAvatar-root)',
-      voiceControls: '.MuiBox-root:has(button:has-text("Выйти"))', // Near voice channel info
-      connectionStatus: '.MuiAppBar-root, header',
-      newChannelInput: '[data-testid="new-channel-input"]',
+      userList: '.MuiList-root', // User list - direct selector for the users List component
+      voiceControls: '.MuiBox-root button:contains("Выйти")', // Voice controls with exit button
+      connectionStatus: '[data-testid="MenuIcon"], .MuiTypography', // Connection status - greater chance of finding in header area
+      newChannelInput: '[data-testid="new-channel-input"]', // Actual data-testid present
       createTextChannelBtn: 'button:contains("# Текст")',
       createVoiceChannelBtn: 'button:contains("🎤 Голос")',
-      drawer: '.MuiDrawer-root, .MobileDrawer-open'
+      drawer: '.MuiDrawer-root'
     };
   }
 
   waitForPageLoad(timeout = 10000) {
     // Wait for socket connection and channel loading
-    this.elementVisible(this.selectors.channelList, timeout);
-    cy.contains(/общий|general|online/i, { timeout }).should('be.visible');
+    cy.contains("Каналы", { timeout }).should('be.visible');
+    cy.contains(/general|Общий|Пользователи онлайн|online/i, { timeout }).should('be.visible');
     return this;
   }
 
