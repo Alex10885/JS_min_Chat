@@ -11,7 +11,7 @@ describe('Chat App - Using Page Objects', () => {
 
   beforeEach(() => {
     // Authenticate and land on main app
-    cy.ensureAuthenticated();
+    cy.ensureAuthenticatedWithHealth();
     chatPage.waitForPageLoad();
   });
 

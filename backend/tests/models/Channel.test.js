@@ -1001,9 +1001,10 @@ describe('Channel Model', () => {
         'Unicode: 🚀✨🌟'
       ];
 
-      for (const desc of specialDescriptions) {
+      for (let i = 0; i < specialDescriptions.length; i++) {
+        const desc = specialDescriptions[i];
         const channel = new Channel({
-          id: `desc-special-${desc.substring(0, 10).replace(/[^a-zA-Z0-9]/g, '')}`,
+          id: `desc-special-${Date.now()}-${i}`,
           name: 'Special Description Test',
           type: 'text',
           createdBy: 'testuser',

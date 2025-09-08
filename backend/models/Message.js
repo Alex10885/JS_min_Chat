@@ -43,13 +43,22 @@ const messageSchema = new mongoose.Schema({
   }
 });
 
-// Indexes for performance and queries
-messageSchema.index({ channel: 1, timestamp: -1 });
-messageSchema.index({ author: 1, timestamp: -1 });
-messageSchema.index({ channel: 1, type: 1, timestamp: -1 });
+// Optimized indexes for performance and queries
+messageSchema.index({ channel: 1, timestamp: -1 }); // For channel history
+messageSchema.index({ channel: 1, type: 1, timestamp: -1 }); // For filtered queries
+messageSchema.index({ author: 1, timestamp: -1 }); // For user message history
 
-// For private messages
+// Compound index for private messages with pagination
 messageSchema.index({ channel: 1, author: 1, target: 1, timestamp: -1 });
+
+// Text index for message search (optional, for future features)
+// messageSchema.index({ text: 'text' });
+
+// Index for reply relationships
+messageSchema.index({ replyTo: 1 });
+
+// Index for message counting and cleanup
+messageSchema.index({ channel: 1, createdAt: -1 }); // Alternative to direct timestamp
 
 // Limit history retrieval (keep recent messages)
 messageSchema.pre('save', function(next) {

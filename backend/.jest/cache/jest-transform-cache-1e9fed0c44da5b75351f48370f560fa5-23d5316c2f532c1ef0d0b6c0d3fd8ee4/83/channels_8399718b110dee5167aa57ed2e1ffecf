@@ -1,0 +1,328 @@
+f1276adf9e1f6fb5ae7bfa9bb3c76edb
+/* istanbul ignore next */
+function cov_oy3zxxp6x() {
+  var path = "/home/raerlim/Chat-JS/backend/src/routes/channels.js";
+  var hash = "49c73953ff807d44e8be93cafd3d9f4116b475e1";
+  var global = new Function("return this")();
+  var gcv = "__coverage__";
+  var coverageData = {
+    path: "/home/raerlim/Chat-JS/backend/src/routes/channels.js",
+    statementMap: {
+      "0": {
+        start: {
+          line: 1,
+          column: 16
+        },
+        end: {
+          line: 1,
+          column: 34
+        }
+      },
+      "1": {
+        start: {
+          line: 2,
+          column: 17
+        },
+        end: {
+          line: 2,
+          column: 45
+        }
+      },
+      "2": {
+        start: {
+          line: 3,
+          column: 26
+        },
+        end: {
+          line: 3,
+          column: 69
+        }
+      },
+      "3": {
+        start: {
+          line: 4,
+          column: 30
+        },
+        end: {
+          line: 4,
+          column: 59
+        }
+      },
+      "4": {
+        start: {
+          line: 5,
+          column: 27
+        },
+        end: {
+          line: 5,
+          column: 57
+        }
+      },
+      "5": {
+        start: {
+          line: 7,
+          column: 15
+        },
+        end: {
+          line: 7,
+          column: 31
+        }
+      },
+      "6": {
+        start: {
+          line: 9,
+          column: 0
+        },
+        end: {
+          line: 9,
+          column: 64
+        }
+      },
+      "7": {
+        start: {
+          line: 48,
+          column: 0
+        },
+        end: {
+          line: 48,
+          column: 85
+        }
+      },
+      "8": {
+        start: {
+          line: 50,
+          column: 0
+        },
+        end: {
+          line: 50,
+          column: 65
+        }
+      },
+      "9": {
+        start: {
+          line: 99,
+          column: 0
+        },
+        end: {
+          line: 103,
+          column: 36
+        }
+      },
+      "10": {
+        start: {
+          line: 105,
+          column: 0
+        },
+        end: {
+          line: 105,
+          column: 95
+        }
+      },
+      "11": {
+        start: {
+          line: 106,
+          column: 0
+        },
+        end: {
+          line: 106,
+          column: 94
+        }
+      },
+      "12": {
+        start: {
+          line: 107,
+          column: 0
+        },
+        end: {
+          line: 107,
+          column: 97
+        }
+      },
+      "13": {
+        start: {
+          line: 109,
+          column: 0
+        },
+        end: {
+          line: 109,
+          column: 24
+        }
+      }
+    },
+    fnMap: {},
+    branchMap: {},
+    s: {
+      "0": 0,
+      "1": 0,
+      "2": 0,
+      "3": 0,
+      "4": 0,
+      "5": 0,
+      "6": 0,
+      "7": 0,
+      "8": 0,
+      "9": 0,
+      "10": 0,
+      "11": 0,
+      "12": 0,
+      "13": 0
+    },
+    f: {},
+    b: {},
+    _coverageSchema: "1a1c01bbd47fc00a2c39e90264f33305004495a9",
+    hash: "49c73953ff807d44e8be93cafd3d9f4116b475e1"
+  };
+  var coverage = global[gcv] || (global[gcv] = {});
+  if (!coverage[path] || coverage[path].hash !== hash) {
+    coverage[path] = coverageData;
+  }
+  var actualCoverage = coverage[path];
+  {
+    // @ts-ignore
+    cov_oy3zxxp6x = function () {
+      return actualCoverage;
+    };
+  }
+  return actualCoverage;
+}
+cov_oy3zxxp6x();
+const express =
+/* istanbul ignore next */
+(cov_oy3zxxp6x().s[0]++, require('express'));
+const {
+  body
+} =
+/* istanbul ignore next */
+(cov_oy3zxxp6x().s[1]++, require('express-validator'));
+const channelController =
+/* istanbul ignore next */
+(cov_oy3zxxp6x().s[2]++, require('../controllers/channelController'));
+const {
+  authenticateToken
+} =
+/* istanbul ignore next */
+(cov_oy3zxxp6x().s[3]++, require('../middleware/auth'));
+const {
+  apiRateLimiter
+} =
+/* istanbul ignore next */
+(cov_oy3zxxp6x().s[4]++, require('../config/rateLimit'));
+const router =
+/* istanbul ignore next */
+(cov_oy3zxxp6x().s[5]++, express.Router());
+/* istanbul ignore next */
+cov_oy3zxxp6x().s[6]++;
+console.log('🔧 GET /api/channels route registered at startup');
+
+/**
+ * @swagger
+ * /api/channels:
+ *   get:
+ *     tags:
+ *       - Channels
+ *     summary: Get list of channels
+ *     description: Retrieves a list of all available channels
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of channels
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Channel'
+ *             example:
+ *               - id: "general"
+ *                 name: "General"
+ *                 type: "text"
+ *                 description: ""
+ *                 createdBy: "system"
+ *                 position: 0
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               error: "Access token required"
+ *       500:
+ *         description: Internal server error
+ */
+/* istanbul ignore next */
+cov_oy3zxxp6x().s[7]++;
+router.get('/', authenticateToken, apiRateLimiter, channelController.getAllChannels);
+/* istanbul ignore next */
+cov_oy3zxxp6x().s[8]++;
+console.log('🔧 POST /api/channels route registered at startup');
+
+/**
+ * @swagger
+ * /api/channels:
+ *   post:
+ *     tags:
+ *       - Channels
+ *     summary: Create a new channel
+ *     description: Creates a new text or voice channel
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ChannelRequest'
+ *           example:
+ *             name: "NewChannel"
+ *             type: "text"
+ *             description: "Description of the new channel"
+ *     responses:
+ *       201:
+ *         description: Channel created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Channel'
+ *             example:
+ *               id: "newchannel"
+ *               name: "NewChannel"
+ *               type: "text"
+ *               description: "Description of the new channel"
+ *               createdBy: "john_doe"
+ *               position: 10
+ *       400:
+ *         description: Invalid request data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized
+ *       409:
+ *         description: Channel name already exists
+ *       500:
+ *         description: Server error
+ */
+/* istanbul ignore next */
+cov_oy3zxxp6x().s[9]++;
+router.post('/', authenticateToken, apiRateLimiter, [body('name').isLength({
+  min: 1,
+  max: 100
+}).trim().escape(), body('type').isIn(['text', 'voice']).trim(), body('description').optional().isLength({
+  max: 500
+}).trim()], channelController.createChannel);
+/* istanbul ignore next */
+cov_oy3zxxp6x().s[10]++;
+router.get('/:channelId', authenticateToken, apiRateLimiter, channelController.getChannelById);
+/* istanbul ignore next */
+cov_oy3zxxp6x().s[11]++;
+router.put('/:channelId', authenticateToken, apiRateLimiter, channelController.updateChannel);
+/* istanbul ignore next */
+cov_oy3zxxp6x().s[12]++;
+router.delete('/:channelId', authenticateToken, apiRateLimiter, channelController.deleteChannel);
+/* istanbul ignore next */
+cov_oy3zxxp6x().s[13]++;
+module.exports = router;
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJuYW1lcyI6WyJjb3Zfb3kzenh4cDZ4IiwiYWN0dWFsQ292ZXJhZ2UiLCJleHByZXNzIiwicyIsInJlcXVpcmUiLCJib2R5IiwiY2hhbm5lbENvbnRyb2xsZXIiLCJhdXRoZW50aWNhdGVUb2tlbiIsImFwaVJhdGVMaW1pdGVyIiwicm91dGVyIiwiUm91dGVyIiwiY29uc29sZSIsImxvZyIsImdldCIsImdldEFsbENoYW5uZWxzIiwicG9zdCIsImlzTGVuZ3RoIiwibWluIiwibWF4IiwidHJpbSIsImVzY2FwZSIsImlzSW4iLCJvcHRpb25hbCIsImNyZWF0ZUNoYW5uZWwiLCJnZXRDaGFubmVsQnlJZCIsInB1dCIsInVwZGF0ZUNoYW5uZWwiLCJkZWxldGUiLCJkZWxldGVDaGFubmVsIiwibW9kdWxlIiwiZXhwb3J0cyJdLCJzb3VyY2VzIjpbImNoYW5uZWxzLmpzIl0sInNvdXJjZXNDb250ZW50IjpbImNvbnN0IGV4cHJlc3MgPSByZXF1aXJlKCdleHByZXNzJyk7XG5jb25zdCB7IGJvZHkgfSA9IHJlcXVpcmUoJ2V4cHJlc3MtdmFsaWRhdG9yJyk7XG5jb25zdCBjaGFubmVsQ29udHJvbGxlciA9IHJlcXVpcmUoJy4uL2NvbnRyb2xsZXJzL2NoYW5uZWxDb250cm9sbGVyJyk7XG5jb25zdCB7IGF1dGhlbnRpY2F0ZVRva2VuIH0gPSByZXF1aXJlKCcuLi9taWRkbGV3YXJlL2F1dGgnKTtcbmNvbnN0IHsgYXBpUmF0ZUxpbWl0ZXIgfSA9IHJlcXVpcmUoJy4uL2NvbmZpZy9yYXRlTGltaXQnKTtcblxuY29uc3Qgcm91dGVyID0gZXhwcmVzcy5Sb3V0ZXIoKTtcblxuY29uc29sZS5sb2coJ/CflKcgR0VUIC9hcGkvY2hhbm5lbHMgcm91dGUgcmVnaXN0ZXJlZCBhdCBzdGFydHVwJyk7XG5cbi8qKlxuICogQHN3YWdnZXJcbiAqIC9hcGkvY2hhbm5lbHM6XG4gKiAgIGdldDpcbiAqICAgICB0YWdzOlxuICogICAgICAgLSBDaGFubmVsc1xuICogICAgIHN1bW1hcnk6IEdldCBsaXN0IG9mIGNoYW5uZWxzXG4gKiAgICAgZGVzY3JpcHRpb246IFJldHJpZXZlcyBhIGxpc3Qgb2YgYWxsIGF2YWlsYWJsZSBjaGFubmVsc1xuICogICAgIHNlY3VyaXR5OlxuICogICAgICAgLSBiZWFyZXJBdXRoOiBbXVxuICogICAgIHJlc3BvbnNlczpcbiAqICAgICAgIDIwMDpcbiAqICAgICAgICAgZGVzY3JpcHRpb246IExpc3Qgb2YgY2hhbm5lbHNcbiAqICAgICAgICAgY29udGVudDpcbiAqICAgICAgICAgICBhcHBsaWNhdGlvbi9qc29uOlxuICogICAgICAgICAgICAgc2NoZW1hOlxuICogICAgICAgICAgICAgICB0eXBlOiBhcnJheVxuICogICAgICAgICAgICAgICBpdGVtczpcbiAqICAgICAgICAgICAgICAgICAkcmVmOiAnIy9jb21wb25lbnRzL3NjaGVtYXMvQ2hhbm5lbCdcbiAqICAgICAgICAgICAgIGV4YW1wbGU6XG4gKiAgICAgICAgICAgICAgIC0gaWQ6IFwiZ2VuZXJhbFwiXG4gKiAgICAgICAgICAgICAgICAgbmFtZTogXCJHZW5lcmFsXCJcbiAqICAgICAgICAgICAgICAgICB0eXBlOiBcInRleHRcIlxuICogICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uOiBcIlwiXG4gKiAgICAgICAgICAgICAgICAgY3JlYXRlZEJ5OiBcInN5c3RlbVwiXG4gKiAgICAgICAgICAgICAgICAgcG9zaXRpb246IDBcbiAqICAgICAgIDQwMTpcbiAqICAgICAgICAgZGVzY3JpcHRpb246IFVuYXV0aG9yaXplZFxuICogICAgICAgICBjb250ZW50OlxuICogICAgICAgICAgIGFwcGxpY2F0aW9uL2pzb246XG4gKiAgICAgICAgICAgICBzY2hlbWE6XG4gKiAgICAgICAgICAgICAgICRyZWY6ICcjL2NvbXBvbmVudHMvc2NoZW1hcy9FcnJvclJlc3BvbnNlJ1xuICogICAgICAgICAgICAgZXhhbXBsZTpcbiAqICAgICAgICAgICAgICAgZXJyb3I6IFwiQWNjZXNzIHRva2VuIHJlcXVpcmVkXCJcbiAqICAgICAgIDUwMDpcbiAqICAgICAgICAgZGVzY3JpcHRpb246IEludGVybmFsIHNlcnZlciBlcnJvclxuICovXG5yb3V0ZXIuZ2V0KCcvJywgYXV0aGVudGljYXRlVG9rZW4sIGFwaVJhdGVMaW1pdGVyLCBjaGFubmVsQ29udHJvbGxlci5nZXRBbGxDaGFubmVscyk7XG5cbmNvbnNvbGUubG9nKCfwn5SnIFBPU1QgL2FwaS9jaGFubmVscyByb3V0ZSByZWdpc3RlcmVkIGF0IHN0YXJ0dXAnKTtcblxuLyoqXG4gKiBAc3dhZ2dlclxuICogL2FwaS9jaGFubmVsczpcbiAqICAgcG9zdDpcbiAqICAgICB0YWdzOlxuICogICAgICAgLSBDaGFubmVsc1xuICogICAgIHN1bW1hcnk6IENyZWF0ZSBhIG5ldyBjaGFubmVsXG4gKiAgICAgZGVzY3JpcHRpb246IENyZWF0ZXMgYSBuZXcgdGV4dCBvciB2b2ljZSBjaGFubmVsXG4gKiAgICAgc2VjdXJpdHk6XG4gKiAgICAgICAtIGJlYXJlckF1dGg6IFtdXG4gKiAgICAgcmVxdWVzdEJvZHk6XG4gKiAgICAgICByZXF1aXJlZDogdHJ1ZVxuICogICAgICAgY29udGVudDpcbiAqICAgICAgICAgYXBwbGljYXRpb24vanNvbjpcbiAqICAgICAgICAgICBzY2hlbWE6XG4gKiAgICAgICAgICAgICAkcmVmOiAnIy9jb21wb25lbnRzL3NjaGVtYXMvQ2hhbm5lbFJlcXVlc3QnXG4gKiAgICAgICAgICAgZXhhbXBsZTpcbiAqICAgICAgICAgICAgIG5hbWU6IFwiTmV3Q2hhbm5lbFwiXG4gKiAgICAgICAgICAgICB0eXBlOiBcInRleHRcIlxuICogICAgICAgICAgICAgZGVzY3JpcHRpb246IFwiRGVzY3JpcHRpb24gb2YgdGhlIG5ldyBjaGFubmVsXCJcbiAqICAgICByZXNwb25zZXM6XG4gKiAgICAgICAyMDE6XG4gKiAgICAgICAgIGRlc2NyaXB0aW9uOiBDaGFubmVsIGNyZWF0ZWQgc3VjY2Vzc2Z1bGx5XG4gKiAgICAgICAgIGNvbnRlbnQ6XG4gKiAgICAgICAgICAgYXBwbGljYXRpb24vanNvbjpcbiAqICAgICAgICAgICAgIHNjaGVtYTpcbiAqICAgICAgICAgICAgICAgJHJlZjogJyMvY29tcG9uZW50cy9zY2hlbWFzL0NoYW5uZWwnXG4gKiAgICAgICAgICAgICBleGFtcGxlOlxuICogICAgICAgICAgICAgICBpZDogXCJuZXdjaGFubmVsXCJcbiAqICAgICAgICAgICAgICAgbmFtZTogXCJOZXdDaGFubmVsXCJcbiAqICAgICAgICAgICAgICAgdHlwZTogXCJ0ZXh0XCJcbiAqICAgICAgICAgICAgICAgZGVzY3JpcHRpb246IFwiRGVzY3JpcHRpb24gb2YgdGhlIG5ldyBjaGFubmVsXCJcbiAqICAgICAgICAgICAgICAgY3JlYXRlZEJ5OiBcImpvaG5fZG9lXCJcbiAqICAgICAgICAgICAgICAgcG9zaXRpb246IDEwXG4gKiAgICAgICA0MDA6XG4gKiAgICAgICAgIGRlc2NyaXB0aW9uOiBJbnZhbGlkIHJlcXVlc3QgZGF0YVxuICogICAgICAgICBjb250ZW50OlxuICogICAgICAgICAgIGFwcGxpY2F0aW9uL2pzb246XG4gKiAgICAgICAgICAgICBzY2hlbWE6XG4gKiAgICAgICAgICAgICAgICRyZWY6ICcjL2NvbXBvbmVudHMvc2NoZW1hcy9FcnJvclJlc3BvbnNlJ1xuICogICAgICAgNDAxOlxuICogICAgICAgICBkZXNjcmlwdGlvbjogVW5hdXRob3JpemVkXG4gKiAgICAgICA0MDk6XG4gKiAgICAgICAgIGRlc2NyaXB0aW9uOiBDaGFubmVsIG5hbWUgYWxyZWFkeSBleGlzdHNcbiAqICAgICAgIDUwMDpcbiAqICAgICAgICAgZGVzY3JpcHRpb246IFNlcnZlciBlcnJvclxuICovXG5yb3V0ZXIucG9zdCgnLycsIGF1dGhlbnRpY2F0ZVRva2VuLCBhcGlSYXRlTGltaXRlciwgW1xuICBib2R5KCduYW1lJykuaXNMZW5ndGgoeyBtaW46IDEsIG1heDogMTAwIH0pLnRyaW0oKS5lc2NhcGUoKSxcbiAgYm9keSgndHlwZScpLmlzSW4oWyd0ZXh0JywgJ3ZvaWNlJ10pLnRyaW0oKSxcbiAgYm9keSgnZGVzY3JpcHRpb24nKS5vcHRpb25hbCgpLmlzTGVuZ3RoKHsgbWF4OiA1MDAgfSkudHJpbSgpXG5dLCBjaGFubmVsQ29udHJvbGxlci5jcmVhdGVDaGFubmVsKTtcblxucm91dGVyLmdldCgnLzpjaGFubmVsSWQnLCBhdXRoZW50aWNhdGVUb2tlbiwgYXBpUmF0ZUxpbWl0ZXIsIGNoYW5uZWxDb250cm9sbGVyLmdldENoYW5uZWxCeUlkKTtcbnJvdXRlci5wdXQoJy86Y2hhbm5lbElkJywgYXV0aGVudGljYXRlVG9rZW4sIGFwaVJhdGVMaW1pdGVyLCBjaGFubmVsQ29udHJvbGxlci51cGRhdGVDaGFubmVsKTtcbnJvdXRlci5kZWxldGUoJy86Y2hhbm5lbElkJywgYXV0aGVudGljYXRlVG9rZW4sIGFwaVJhdGVMaW1pdGVyLCBjaGFubmVsQ29udHJvbGxlci5kZWxldGVDaGFubmVsKTtcblxubW9kdWxlLmV4cG9ydHMgPSByb3V0ZXI7Il0sIm1hcHBpbmdzIjoiOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7OztJQWVZO0lBQUFBLGFBQUEsWUFBQUEsQ0FBQTtNQUFBLE9BQUFDLGNBQUE7SUFBQTtFQUFBO0VBQUEsT0FBQUEsY0FBQTtBQUFBO0FBQUFELGFBQUE7QUFmWixNQUFNRSxPQUFPO0FBQUE7QUFBQSxDQUFBRixhQUFBLEdBQUFHLENBQUEsT0FBR0MsT0FBTyxDQUFDLFNBQVMsQ0FBQztBQUNsQyxNQUFNO0VBQUVDO0FBQUssQ0FBQztBQUFBO0FBQUEsQ0FBQUwsYUFBQSxHQUFBRyxDQUFBLE9BQUdDLE9BQU8sQ0FBQyxtQkFBbUIsQ0FBQztBQUM3QyxNQUFNRSxp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

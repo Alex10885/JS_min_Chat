@@ -1,8 +1,11 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
+    "start": "node src/index.js",
+    "start:dev": "nodemon src/index.js",
+    "start:old": "node server.js",
     "test": "cross-env NODE_ENV=test jest --maxWorkers=50%",
     "test:parallel": "cross-env NODE_ENV=test jest --maxWorkers=2",
     "test:watch": "cross-env NODE_ENV=test jest --watch",
@@ -13,6 +16,7 @@
   "license": "ISC",
   "description": "",
   "jest": {
+    "rootDir": ".",
     "testEnvironment": "node",
     "setupFilesAfterEnv": [
       "<rootDir>/tests/setup.js"
@@ -21,10 +25,17 @@
       "<rootDir>/tests/**/*.test.js"
     ],
     "collectCoverageFrom": [
-      "**/*.js",
+      "backend/models/**/*.js",
+      "backend/src/**/*.js",
+      "!backend/src/server/server.js",
       "!**/node_modules/**",
       "!**/tests/**",
       "!server.js"
+    ],
+    "coverageReporters": [
+      "text",
+      "lcov",
+      "html"
     ],
     "maxWorkers": "50%",
     "testTimeout": 30000,
@@ -37,26 +48,30 @@
     "coverageThreshold": {
       "global": {
         "branches": 70,
-        "functions": 70,
-        "lines": 70,
-        "statements": 70
+        "functions": 85,
+        "lines": 85,
+        "statements": 85
       }
     }
   },
   "dependencies": {
+    "axios": "^1.11.0",
     "bcryptjs": "^3.0.2",
     "connect-mongo": "^5.1.0",
+    "connect-redis": "^9.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^4.19.2",
-    "express-session": "^1.18.1",
     "express-rate-limit": "^8.1.0",
+    "express-session": "^1.18.1",
     "express-validator": "^7.2.1",
     "helmet": "^8.1.0",
+    "ioredis": "^5.7.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.18.0",
     "nodemailer": "^7.0.6",
     "socket.io": "^4.8.1",
+    "speakeasy": "^2.0.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "winston": "^3.17.0"

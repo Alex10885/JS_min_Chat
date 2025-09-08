@@ -86,12 +86,12 @@ channelSchema.pre('save', async function(next) {
     // Ensure uniqueness
     let uniqueId = baseId;
     let counter = 1;
-    let existing = await mongoose.model('Channel').findOne({ id: uniqueId });
+    let existing = await this.constructor.findOne({ id: uniqueId });
 
     while (existing) {
       uniqueId = `${baseId}-${counter}`;
       counter++;
-      existing = await mongoose.model('Channel').findOne({ id: uniqueId });
+      existing = await this.constructor.findOne({ id: uniqueId });
     }
 
     this.id = uniqueId;

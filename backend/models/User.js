@@ -66,6 +66,53 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  // Security fields for brute-force protection
+  failedLoginAttempts: {
+    type: Number,
+    default: 0
+  },
+  lastFailedAttempt: {
+    type: Date,
+    default: null
+  },
+  accountLockedUntil: {
+    type: Date,
+    default: null
+  },
+  captchaRequired: {
+    type: Boolean,
+    default: false
+  },
+  securityToken: {
+    type: String,
+    default: null
+  },
+  // Two-Factor Authentication (2FA/OTP) fields
+  twoFactorEnabled: {
+    type: Boolean,
+    default: false
+  },
+  twoFactorSecret: {
+    type: String,
+    default: null
+  },
+  backupCodes: [{
+    type: String,
+    default: []
+  }],
+  twoFactorMethod: {
+    type: String,
+    enum: ['TOTP', 'SMS', 'EMAIL'],
+    default: 'TOTP'
+  },
+  last2FACode: {
+    type: String,
+    default: null
+  },
+  last2FACodeExpiry: {
+    type: Date,
+    default: null
+  },
   // Temporary tokens
   resetPasswordToken: {
     type: String,
@@ -256,6 +303,113 @@ userSchema.methods.hasAdminPrivileges = function() {
   return this.role === 'admin';
 };
 
+// Check if account is locked
+userSchema.methods.isAccountLocked = function() {
+  if (!this.accountLockedUntil) return false;
+  return this.accountLockedUntil > new Date();
+};
+
+// Increment failed login attempts
+userSchema.methods.incFailedAttempts = function() {
+  this.failedLoginAttempts += 1;
+  this.lastFailedAttempt = new Date();
+
+  // Lock account after 3 failed attempts
+  if (this.failedLoginAttempts >= 3) {
+    this.accountLockedUntil = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes lock
+    this.captchaRequired = true; // Require CAPTCHA when unlocked
+  }
+
+  // Require CAPTCHA after 2 failed attempts
+  if (this.failedLoginAttempts >= 2) {
+    this.captchaRequired = true;
+  }
+
+  return this.save();
+};
+
+// Reset failed login attempts (on successful login)
+userSchema.methods.resetFailedAttempts = function() {
+  this.failedLoginAttempts = 0;
+  this.accountLockedUntil = null;
+  this.captchaRequired = false;
+  return this.save();
+};
+
+// Generate security token for CAPTCHA verification
+userSchema.methods.generateSecurityToken = function() {
+  this.securityToken = crypto.randomBytes(32).toString('hex');
+  return this.save().then(() => this.securityToken);
+};
+
+// Clear security token
+userSchema.methods.clearSecurityToken = function() {
+  this.securityToken = null;
+  return this.save();
+};
+
+// Generate 2FA secret (base32 encoded)
+userSchema.methods.generate2FASecret = function() {
+  const speakeasy = require('speakeasy');
+  const secret = speakeasy.generateSecret({
+    name: `Chat-JS (${this.nickname})`,
+    issuer: 'Chat-JS'
+  });
+  this.twoFactorSecret = secret.base32;
+  return this.save().then(() => secret);
+};
+
+// Enable 2FA
+userSchema.methods.enable2FA = function(method = 'TOTP') {
+  if (!this.twoFactorSecret) {
+    throw new Error('2FA secret not generated');
+  }
+  this.twoFactorEnabled = true;
+  this.twoFactorMethod = method;
+
+  // Generate backup codes (10 codes)
+  this.backupCodes = [];
+  for (let i = 0; i < 10; i++) {
+    const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+    this.backupCodes.push(code);
+  }
+
+  return this.save();
+};
+
+// Disable 2FA
+userSchema.methods.disable2FA = function() {
+  this.twoFactorEnabled = false;
+  this.twoFactorSecret = null;
+  this.backupCodes = [];
+  return this.save();
+};
+
+// Verify 2FA code
+userSchema.methods.verify2FACode = function(code, useBackup = false) {
+  if (!this.twoFactorEnabled || !this.twoFactorSecret) {
+    return false;
+  }
+
+  // Check if using backup code
+  if (useBackup && this.backupCodes.includes(code)) {
+    // Remove used backup code
+    this.backupCodes = this.backupCodes.filter(bc => bc !== code);
+    return this.save().then(() => true);
+  }
+
+  if (useBackup) return false;
+
+  // Verify TOTP
+  const speakeasy = require('speakeasy');
+  return speakeasy.totp.verify({
+    secret: this.twoFactorSecret,
+    encoding: 'base32',
+    token: code,
+    window: 2 // Allow time window for clock skew
+  });
+};
+
 // Remove password and sensitive data from JSON output
 userSchema.methods.toJSON = function() {
   const userObject = this.toObject();
@@ -264,11 +418,15 @@ userSchema.methods.toJSON = function() {
   delete userObject.resetPasswordExpires;
   delete userObject.moderationToken;
   delete userObject.moderationTokenExpires;
+  delete userObject.securityToken;
   // Don't show ban details to regular users
   if (!this.hasModeratorPrivileges()) {
     delete userObject.banReason;
     delete userObject.banExpires;
     delete userObject.warnings;
+    delete userObject.failedLoginAttempts;
+    delete userObject.lastFailedAttempt;
+    delete userObject.accountLockedUntil;
   }
   return userObject;
 };

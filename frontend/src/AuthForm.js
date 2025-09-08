@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { Tabs, Tab, TextField, Button, Typography } from '@mui/material';
 import axios from 'axios';
 
+// Configure axios to include credentials in requests
+axios.defaults.withCredentials = true;
+
 const AuthForm = ({ onAuthSuccess }) => {
   const [mode, setMode] = useState(0); // 0 для login, 1 для register
   const [identifier, setIdentifier] = useState('');
@@ -13,12 +16,21 @@ const AuthForm = ({ onAuthSuccess }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     setErrorMessage('');
-    const endpoint = mode === 0 ? '/login' : '/register';
+    const endpoint = mode === 0 ? '/api/login' : '/api/register';
     const data = mode === 0
       ? { identifier, password }
       : { nickname, email, password };
 
     console.log('🔐 Frontend auth submit:', { mode: mode === 0 ? 'login' : 'register', endpoint, data: mode === 0 ? { identifier: data.identifier, hasPassword: !!data.password } : { nickname: data.nickname, email: data.email } });
+
+    // Log full request URL
+    let fullRequestUrl = '';
+    if (axios.defaults.baseURL) {
+      fullRequestUrl = axios.defaults.baseURL + (endpoint.startsWith('/') ? endpoint : '/' + endpoint);
+    } else {
+      fullRequestUrl = window.location.origin + (endpoint.startsWith('/') ? endpoint : '/' + endpoint);
+    }
+    console.log('📡 Request URL:', fullRequestUrl);
 
     axios.post(endpoint, data)
       .then(response => {
@@ -32,6 +44,15 @@ const AuthForm = ({ onAuthSuccess }) => {
           data: error.response?.data,
           message: error?.message || error
         });
+
+        // Handle specific error codes
+        if (error.response?.data?.code === 'USER_NOT_FOUND') {
+          setErrorMessage('User session expired. Please log in again.');
+          // Clear any stored tokens if they exist
+          onAuthSuccess(null, null); // This will trigger logout
+          return;
+        }
+
         setErrorMessage(error.response?.data?.message || 'An error occurred');
         console.error('Authentication error:', error);
       });

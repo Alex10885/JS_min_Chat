@@ -1,6 +1,36 @@
 version: '3.8'
 
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - chat-network
+
+  backend:
+    build: ./backend
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - MONGODB_URI=mongodb://mongo:27017/chatjs
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=0
+      - SESSION_SECRET=${SESSION_SECRET:-default-session-secret-change-in-production}
+      - JWT_SECRET=${JWT_SECRET:-default-jwt-secret-change-in-production}
+    depends_on:
+      - mongo
+      - redis
+    networks:
+      - chat-network
+
   coturn:
     image: coturn/coturn:latest
     ports:
@@ -14,6 +44,23 @@ services:
       - ./coturn.conf:/etc/coturn/turnserver.conf:ro
     networks:
       - chat-network
+
+  mongo:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD:-chatjs-mongo-password}
+      - MONGO_INITDB_DATABASE=chatjs
+    networks:
+      - chat-network
+
+volumes:
+  redis_data:
+  mongo_data:
 
 networks:
   chat-network:

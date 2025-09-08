@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import ErrorBoundary from './ErrorBoundary';
-import useSocket from './useSocket';
-import useWebRTC from './useWebRTC';
+import useSocket from './hooks/useSocket';
+import useWebRTC from './hooks/useWebRTC';
 import AuthForm from './AuthForm';
-import Header from './components/Header';
+import Header from './components/layout/Header';
+import VoiceControls from './components/features/voice/VoiceControls';
 import axios from 'axios';
 
 import { Container, Paper, TextField, Button, List, ListItem, Typography, Box, ListItemText, Avatar, ThemeProvider, createTheme, CssBaseline, Badge, Drawer, useMediaQuery, Dialog, DialogTitle, DialogContent } from '@mui/material';
-import MessageList from './components/MessageList';
+import MessageList from './components/features/chat/MessageList';
+import MessageInput from './components/features/chat/MessageInput';
 import { useSnackbar } from 'notistack';
 import Grid from '@mui/material/Grid';
 import Accordion from '@mui/material/Accordion';
@@ -97,7 +99,7 @@ function App() {
     // Configure axios defaults
     const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
     const apiBasePath = process.env.REACT_APP_API_BASE_PATH || '/api';
-    axios.defaults.baseURL = `${apiUrl}${apiBasePath}`;
+    axios.defaults.baseURL = apiUrl; // Use full URL, endpoints include /api
     axios.defaults.timeout = 10000; // 10 seconds timeout
 
     // Request interceptor for auth tokens
@@ -183,12 +185,19 @@ function App() {
   // Socket connection hook
   const { socket, isConnected, connectionStatus } = useSocket(token, { nickname, role });
 
-  // WebRTC voice hook
+  // WebRTC voice hook with enhanced features
   const {
     isMuted,
     participants: voiceParticipants,
     localAudioRef,
-    toggleMute
+    toggleMute,
+    connectionState,
+    connectionQuality,
+    bandwidthProfile,
+    serverHealth,
+    errors,
+    peerCount,
+    connectionMetrics
   } = useWebRTC(socket, voiceChannel);
 
 
@@ -197,7 +206,7 @@ function App() {
 
     const fetchInitialData = async () => {
       try {
-        axios.get('/channels')
+        axios.get('/api/channels')
           .then(res => {
             const uniqueChannels = res.data.filter((channel, index, self) =>
               index === self.findIndex(c => c.id === channel.id)
@@ -354,7 +363,7 @@ function App() {
                             setSelected(channel.id);
                           }
                         }}>
-                          {channel.type === 'voice' ? <VolumeUpIcon fontSize="small" /> : <Typography sx={{ mr: 0.5 }}>#</Typography>}
+                          {channel.type === 'voice' ? <VolumeUpIcon data-testid="VolumeUpIcon" fontSize="small" /> : <Typography sx={{ mr: 0.5 }}>#</Typography>}
                           <Typography>{channel.name}</Typography>
                         </Box>
                       </ListItem>
@@ -388,7 +397,7 @@ function App() {
                     fullWidth
                     onClick={() => {
                       if (newChannelName.trim()) {
-                        axios.post('/channels', { name: newChannelName.trim(), type: 'text' })
+                        axios.post('/api/channels', { name: newChannelName.trim(), type: 'text' })
                           .then(res => {
                             setChannels(prev => [...prev, res.data]);
                             setNewChannelName('');
@@ -405,7 +414,7 @@ function App() {
                     fullWidth
                     onClick={() => {
                       if (newChannelName.trim()) {
-                        axios.post('/channels', { name: newChannelName.trim(), type: 'voice' })
+                        axios.post('/api/channels', { name: newChannelName.trim(), type: 'voice' })
                           .then(res => {
                             setChannels(prev => [...prev, res.data]);
                             setNewChannelName('');
@@ -459,23 +468,27 @@ function App() {
             </Accordion>
             </ErrorBoundary>
             {inVoice && voiceChannel && (
-              <Box style={{ marginTop: 10, padding: 10, backgroundColor: '#5865f2', borderRadius: 5, color: 'white' }}>
-                <Typography variant="body2">Голосовой канал: {channels.find(c => c.id === voiceChannel)?.name}</Typography>
-                <Button size="small" color="secondary" onClick={leaveVoice} style={{ marginTop: 5 }}>
-                  <HeadphonesIcon /> Выйти
-                </Button>
-                <Button
-                  size="small"
-                  color="error"
-                  onClick={toggleMute}
-                  style={{ marginTop: 5, marginLeft: 5 }}
-                >
-                  {isMuted ? <MicOffIcon /> : <MicIcon />}
-                </Button>
-              </Box>
+              <VoiceControls
+                isConnected={isConnected}
+                isMuted={isMuted}
+                channels={channels}
+                voiceChannel={voiceChannel}
+                inVoice={inVoice}
+                onToggleMute={toggleMute}
+                onLeaveVoice={leaveVoice}
+                // Enhanced WebRTC props
+                connectionState={connectionState}
+                connectionQuality={connectionQuality}
+                bandwidthProfile={bandwidthProfile}
+                serverHealth={serverHealth}
+                errors={errors}
+                peerCount={peerCount}
+                connectionMetrics={connectionMetrics}
+              />
             )}
             <Box style={{ marginTop: 20 }}>
               <TextField
+                data-testid="new-channel-input"
                 fullWidth
                 size="small"
                 placeholder="New Channel Name"
@@ -490,7 +503,7 @@ function App() {
                   style={{ marginTop: 10 }}
                   onClick={() => {
                     if (newChannelName.trim()) {
-                      axios.post('/channels', { name: newChannelName.trim(), type: 'text' })
+                      axios.post('/api/channels', { name: newChannelName.trim(), type: 'text' })
                         .then(res => {
                           setChannels(prev => [...prev, res.data]);
                           setNewChannelName('');
@@ -508,7 +521,7 @@ function App() {
                   style={{ marginTop: 10 }}
                   onClick={() => {
                     if (newChannelName.trim()) {
-                      axios.post('/channels', { name: newChannelName.trim(), type: 'voice' })
+                      axios.post('/api/channels', { name: newChannelName.trim(), type: 'voice' })
                         .then(res => {
                           setChannels(prev => [...prev, res.data]);
                           setNewChannelName('');

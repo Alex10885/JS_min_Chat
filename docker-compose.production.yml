@@ -149,10 +149,8 @@ services:
   mongo:
     image: mongo:7-jammy
     container_name: chat-js-mongo-prod
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=admin
-      - MONGO_INITDB_ROOT_PASSWORD=password
-      - MONGO_INITDB_DATABASE=chatjs
+    ports:
+      - "27017:27017"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]

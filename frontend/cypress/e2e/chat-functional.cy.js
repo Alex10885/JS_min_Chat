@@ -5,27 +5,12 @@ describe('Chat App - End-to-End Functional Tests', () => {
       return false; // Prevent Cypress from failing the test
     });
 
-    // Wait for backend to be ready
-    cy.request({
-      url: `${Cypress.env('apiUrl') || 'http://localhost:3001'}/health`,
-      failOnStatusCode: false,
-      timeout: 10000
-    }).then((response) => {
-      if (response.status === 200) {
-        cy.log('Backend health check: OK');
-      } else {
-        cy.log('Backend health check failed:', response.status);
-      }
-    });
-
-    // Ensure user is authenticated using improved auth command
-    cy.log('Ensuring user authentication...');
-    cy.ensureAuthenticated().then(() => {
-      cy.log('Authentication completed');
-      // Wait for page to stabilize and Socket.IO to connect
-      cy.wait(3000);
+    // Wait for backend to be ready and ensure authentication
+    cy.log('Ensuring user authentication with health check...');
+    cy.ensureAuthenticatedWithHealth().then(() => {
+      cy.log('Authentication and health check completed');
       // Wait for connection status to appear
-      cy.contains(/Подключено|Переподключение|Отключено/, { timeout: 15000 }).should('be.visible');
+      cy.contains(/Подключено|Переподключение|Отключено/, { timeout: 20000 }).should('be.visible');
     });
   });
 
@@ -198,7 +183,9 @@ describe('Chat App - Error Handling and Recovery', () => {
       cy.log('Uncaught exception:', err.message);
       return false;
     });
-    cy.ensureAuthenticated();
+    // Add delay to prevent rate limiting
+    cy.wait(3000);
+    cy.ensureAuthenticatedWithHealth();
   });
 
   it('should handle network disconnection gracefully', () => {
@@ -241,7 +228,9 @@ describe('Chat App - User Experience', () => {
       cy.log('Uncaught exception:', err.message);
       return false;
     });
-    cy.ensureAuthenticated();
+    // Add delay to prevent rate limiting
+    cy.wait(4000);
+    cy.ensureAuthenticatedWithHealth();
   });
 
   it('should maintain user context on reload', () => {
@@ -259,7 +248,7 @@ describe('Chat App - User Experience', () => {
     }
 
     // Check that message container is scrollable (basic check)
-    cy.get('[data-testid="message-container"], .message-list, [role="list"]')
+    cy.get('.message-list, [data-testid="message-list"], .MuiDrawer-paper')
       .should('have.css', 'overflow');
   });
 
